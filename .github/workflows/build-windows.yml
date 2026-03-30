@@ -25,6 +25,15 @@ jobs:
       - name: Install npm deps
         run: npm install
 
+      # Scarica le icone default di Tauri nel runner
+      - name: Download default Tauri icons
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri/icons
+          Invoke-WebRequest -Uri "https://github.com/tauri-apps/tauri/raw/dev/examples/api/src-tauri/icons/icon.ico" -OutFile "src-tauri/icons/icon.ico"
+          Invoke-WebRequest -Uri "https://github.com/tauri-apps/tauri/raw/dev/examples/api/src-tauri/icons/32x32.png" -OutFile "src-tauri/icons/32x32.png"
+          Invoke-WebRequest -Uri "https://github.com/tauri-apps/tauri/raw/dev/examples/api/src-tauri/icons/128x128.png" -OutFile "src-tauri/icons/128x128.png"
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
