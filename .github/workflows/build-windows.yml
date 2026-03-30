@@ -25,17 +25,9 @@ jobs:
       - name: Install npm deps
         run: npm install
 
-      - name: Download default Tauri icons
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path src-tauri/icons
-          $client = New-Object System.Net.WebClient
-          $base = "https://raw.githubusercontent.com/tauri-apps/tauri/dev/examples/api/src-tauri/icons"
-          $client.DownloadFile("$base/icon.ico",      "src-tauri/icons/icon.ico")
-          $client.DownloadFile("$base/32x32.png",     "src-tauri/icons/32x32.png")
-          $client.DownloadFile("$base/128x128.png",   "src-tauri/icons/128x128.png")
-          $client.DownloadFile("$base/128x128@2x.png","src-tauri/icons/128x128@2x.png")
-          $client.DownloadFile("$base/icon.png",      "src-tauri/icons/icon.png")
+      # Genera icone con Python (già installato nel runner)
+      - name: Generate icons
+        run: python generate_icons.py
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
