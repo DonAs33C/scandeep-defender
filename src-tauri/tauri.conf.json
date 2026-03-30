@@ -1,7 +1,7 @@
 {
   "productName": "Malware Scanner",
   "version": "1.0.0",
-  "identifier": "com.manuel.scandeep",
+  "identifier": "com.scandeep",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
