@@ -1,0 +1,27 @@
+{
+  "productName": "Malware Scanner",
+  "version": "1.0.0",
+  "identifier": "com.scandeep",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Malware Scanner",
+        "width": 1000,
+        "height": 700,
+        "resizable": true
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi"],
+    "icon": ["icons/icon.ico"]
+  }
+}
