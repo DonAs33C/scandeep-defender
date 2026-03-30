@@ -22,7 +22,12 @@ jobs:
 
       # Install dependencies
       - name: Install npm deps
-        run: npm install
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       # Install Rust
       - name: Install Rust stable
