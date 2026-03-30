@@ -3,6 +3,8 @@ name = "scandeep-defender"
 version = "1.0.0"
 edition = "2021"
 
+[package.metadata]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
