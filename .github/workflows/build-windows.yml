@@ -39,7 +39,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: "Malware Scanner ${{ github.ref_name }}"
+          releaseName: "ScanDeep Defender ${{ github.ref_name }}"
           releaseBody: "Release automatica Windows."
           releaseDraft: false
           prerelease: false
