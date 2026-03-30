@@ -5,10 +5,12 @@ on:
     tags:
       - 'v*'
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: windows-latest
-
     permissions:
       contents: write
 
@@ -19,7 +21,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install Rust
@@ -28,7 +30,6 @@ jobs:
       - name: Install npm deps
         run: npm install
 
-      # Genera icone con Python (già installato nel runner)
       - name: Generate icons
         run: python generate_icons.py
 
