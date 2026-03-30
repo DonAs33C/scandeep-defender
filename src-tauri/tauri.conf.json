@@ -5,8 +5,8 @@
   "identifier": "com.scandeep",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
-    "frontendDist": "../dist",
+    "beforeBuildCommand": "cd src && npm run build",
+    "frontendDist": "src/dist",
     "devUrl": "http://localhost:5173"
   },
   "app": {
