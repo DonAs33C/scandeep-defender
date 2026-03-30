@@ -1,17 +1,11 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
+import React from "react";
+import ReactDOM from "react-dom/client";
 
-function App() {
-  return (
-    <div style={{ padding: 20 }}>
-      <h1>ScanDeep Defender</h1>
-      <p>Frontend pronto: build Vite OK.</p>
-    </div>
-  )
-}
-
-ReactDOM.createRoot(document.getElementById('root')!).render(
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <App />
+    <div style={{ padding: 24, fontFamily: "sans-serif" }}>
+      <h1>🛡️ Malware Scanner</h1>
+      <p>Build OK — pronto per l'integrazione React.</p>
+    </div>
   </React.StrictMode>
-)
+);
