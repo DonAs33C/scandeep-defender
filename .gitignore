@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.github/secret*
+src-tauri/target/
+*.log
+.DS_Store
