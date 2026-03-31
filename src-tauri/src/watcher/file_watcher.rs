@@ -1,0 +1,68 @@
+
+use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use std::path::PathBuf;
+use std::sync::{mpsc, Arc};
+use tauri::{AppHandle, Emitter};
+
+use crate::app_state::AppState;
+use crate::engine::{job::ScanJob, queue::JobQueue};
+use crate::watcher::stability_checker::StabilityChecker;
+
+pub fn start_watcher(app: AppHandle, state: Arc<AppState>, queue: Arc<JobQueue>) {
+    let downloads = dirs::download_dir().unwrap_or_else(|| PathBuf::from("."));
+
+    std::thread::spawn(move || {
+        let (tx, rx) = mpsc::channel::<notify::Result<Event>>();
+        let mut watcher: RecommendedWatcher =
+            match notify::recommended_watcher(tx) { Ok(w) => w, Err(e) => {
+                tracing::error!("Failed to create watcher: {}", e); return;
+            }};
+        if let Err(e) = watcher.watch(&downloads, RecursiveMode::NonRecursive) {
+            tracing::error!("Failed to watch downloads: {}", e); return;
+        }
+        tracing::info!("Watching {:?} for new files", downloads);
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        for res in rx {
+            // Respect auto-scan toggle
+            if !*state.auto_scan.lock().unwrap() { continue; }
+
+            if let Ok(event) = res {
+                if !matches!(event.kind, EventKind::Create(_)) { continue; }
+
+                for path in event.paths {
+                    if StabilityChecker::should_ignore(&path) { continue; }
+
+                    let queue2  = Arc::clone(&queue);
+                    let state2  = Arc::clone(&state);
+                    let app2    = app.clone();
+                    let path2   = path.clone();
+
+                    rt.spawn(async move {
+                        match StabilityChecker::wait_until_stable(&path2).await {
+                            Ok(_size) => {
+                                let cfg = state2.config.read().unwrap();
+                                if !cfg.rules.should_scan(&path2) {
+                                    tracing::debug!("Rules: skip {:?}", path2);
+                                    return;
+                                }
+                                let job = ScanJob::new(
+                                    path2.clone(),
+                                    cfg.enabled_providers.clone(),
+                                    cfg.allow_cloud_upload,
+                                );
+                                let _ = app2.emit("job-queued", serde_json::json!({
+                                    "job_id": job.id,
+                                    "filename": job.filename
+                                }));
+                                let _ = queue2.enqueue(job);
+                            }
+                            Err(e) => tracing::warn!("Stability check failed: {}", e),
+                        }
+                    });
+                }
+            }
+        }
+    });
+}
