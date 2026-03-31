@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 
 interface ServiceResult {
@@ -13,121 +13,116 @@ interface ScanResult {
   services: Record<string, ServiceResult>;
   overall_verdict: "clean"|"suspicious"|"malicious"|"pending";
 }
-
 const SERVICES = [
-  { id:"virustotal",   label:"VirusTotal (70+ engine)",   color:"#f87171" },
-  { id:"metadefender", label:"MetaDefender (40+ engine)", color:"#fb923c" },
-  { id:"clamav",       label:"ClamAV locale",             color:"#34d399" },
+  { id:"virustotal",     label:"VirusTotal",      sub:"70+ engine cloud",    color:"#f87171" },
+  { id:"metadefender",   label:"MetaDefender",    sub:"40+ engine cloud",    color:"#fb923c" },
+  { id:"hybridanalysis", label:"Hybrid Analysis", sub:"Sandbox + hash",      color:"#a78bfa" },
+  { id:"cloudmersive",   label:"Cloudmersive",    sub:"Scan file avanzato",  color:"#34d399" },
+  { id:"clamav",         label:"ClamAV locale",   sub:"Offline, illimitato", color:"#38bdf8" },
 ];
-
+const VERDICT_LABEL: Record<string,string> = {
+  clean:"✅ Pulito — nessuna minaccia rilevata",
+  suspicious:"⚠️ Sospetto — verificare manualmente",
+  malicious:"🚨 MALWARE RILEVATO",
+  pending:"⏳ Analisi in corso / dati insufficienti",
+};
 export default function Scanner() {
   const [filePath, setFilePath] = useState<string|null>(null);
-  const [fileName, setFileName] = useState<string>("");
+  const [fileName, setFileName] = useState("");
   const [selected, setSelected] = useState<string[]>(["virustotal","clamav"]);
-  const [scanning, setScanning]   = useState(false);
-  const [result, setResult]       = useState<ScanResult|null>(null);
-  const [autoResult, setAutoResult] = useState<ScanResult|null>(null);
-  const [error, setError]         = useState<string|null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [result,   setResult]   = useState<ScanResult|null>(null);
+  const [autoNotif,setAutoNotif]= useState<ScanResult|null>(null);
+  const [error,    setError]    = useState<string|null>(null);
 
-  // Ascolta scansioni automatiche dal file watcher
   useEffect(() => {
-    const unlisten = listen<ScanResult>("scan-complete", (event) => {
-      setAutoResult(event.payload);
-    });
-    return () => { unlisten.then(f => f()); };
+    const ul = listen<ScanResult>("scan-complete", e => setAutoNotif(e.payload));
+    return () => { ul.then(f => f()); };
   }, []);
 
   const pickFile = async () => {
-    const path = await open({ multiple: false, directory: false });
-    if (typeof path === "string") {
+    const path = await openDialog({ multiple: false, directory: false });
+    if (typeof path === "string" && path) {
       setFilePath(path);
-      setFileName(path.split(/[\\\\/]/).pop() ?? path);
+      setFileName(path.split(/[\\/]/).pop() ?? path);
       setResult(null); setError(null);
     }
   };
-
   const toggle = (id: string) =>
-    setSelected(s => s.includes(id) ? s.filter(x=>x!==id) : [...s, id]);
+    setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
 
   const scan = async () => {
-    if (!filePath || selected.length === 0) return;
+    if (!filePath || !selected.length) return;
     setScanning(true); setError(null); setResult(null);
     try {
-      const settings = JSON.parse(localStorage.getItem("scandeep_settings")||"{}");
-      await invoke("set_watcher_keys", { vt: settings.vt_key??"", md: settings.md_key??"" });
+      const cfg = JSON.parse(localStorage.getItem("scandeep_settings") || "{}");
+      await invoke("set_watcher_keys", { vt: cfg.vt_key??"", md: cfg.md_key??"", ha: cfg.ha_key??"", cm: cfg.cm_key??"" });
       const res = await invoke<ScanResult>("scan_file", {
         filePath, services: selected,
-        vtKey: settings.vt_key ?? "",
-        mdKey: settings.md_key ?? "",
+        vtKey: cfg.vt_key??"", mdKey: cfg.md_key??"",
+        haKey: cfg.ha_key??"", cmKey: cfg.cm_key??"",
       });
       setResult(res);
     } catch(e) { setError(String(e)); }
     finally { setScanning(false); }
   };
 
-  const verdictClass = (v: string) =>
-    v==="clean"?"verdict clean":v==="suspicious"?"verdict suspicious":
-    v==="malicious"?"verdict malicious":"verdict pending";
-
-  const verdictIcon = (v: string) =>
-    ({clean:"✅ Pulito",suspicious:"⚠️ Sospetto",malicious:"🚨 MALWARE",pending:"⏳ In analisi"})[v]??v;
-
   return (
     <div>
-      {/* Notifica auto-scan */}
-      {autoResult && (
-        <div className={verdictClass(autoResult.overall_verdict)} style={{marginBottom:"1rem"}}>
-          🔔 Auto-scan: <strong>{autoResult.filename}</strong> — {verdictIcon(autoResult.overall_verdict)}
-          <button onClick={()=>setAutoResult(null)}
-            style={{float:"right",background:"none",border:"none",color:"inherit",cursor:"pointer",fontSize:"1rem"}}>✕</button>
+      {autoNotif && (
+        <div className={`notification verdict ${autoNotif.overall_verdict}`}>
+          🔔 Auto-scan: <strong>{autoNotif.filename}</strong> — {VERDICT_LABEL[autoNotif.overall_verdict]}
+          <button className="notif-close" onClick={() => setAutoNotif(null)}>✕</button>
         </div>
       )}
-
       <div className="card">
-        <h2>Seleziona file da analizzare</h2>
-        <div className={`upload-area ${filePath?"has-file":""}`} onClick={pickFile}>
-          {filePath
-            ? <><div style={{fontSize:"2rem"}}>📄</div><div style={{marginTop:8}}>{fileName}</div></>
-            : <><div style={{fontSize:"2rem"}}>📂</div><div style={{marginTop:8}}>Clicca per sfogliare e selezionare un file</div></>
-          }
+        <h2>📂 Seleziona file</h2>
+        <div className={`upload-area ${filePath ? "has-file" : ""}`} onClick={pickFile}
+          role="button" tabIndex={0} onKeyDown={e => e.key==="Enter" && pickFile()}>
+          <div className="icon">{filePath ? "📄" : "📂"}</div>
+          <div>{filePath ? fileName : "Clicca per sfogliare e selezionare un file"}</div>
+          {filePath && <div style={{fontSize:"0.78rem",marginTop:"0.4rem",color:"#475569"}}>{filePath}</div>}
         </div>
-
-        <h2 style={{marginTop:"1.2rem"}}>Servizi di scansione</h2>
-        {SERVICES.map(s => (
-          <label key={s.id}>
-            <input type="checkbox" checked={selected.includes(s.id)} onChange={()=>toggle(s.id)} />
-            <span style={{color:s.color}}>{s.label}</span>
-          </label>
-        ))}
-
-        <div style={{marginTop:"1rem"}}>
-          <button className="btn btn-primary"
-            onClick={scan}
-            disabled={!filePath || selected.length===0 || scanning}>
-            {scanning ? <><span className="spinner"/>Scansione in corso...</> : "🔍 Avvia scansione"}
+        <h2>🔍 Servizi di scansione</h2>
+        <p className="section-sub">Seleziona uno o più servizi</p>
+        <div className="service-list">
+          {SERVICES.map(s => (
+            <label key={s.id} className={`service-item ${selected.includes(s.id)?"checked":""}`}>
+              <input type="checkbox" checked={selected.includes(s.id)} onChange={() => toggle(s.id)} />
+              <div>
+                <div className="svc-label" style={{color:s.color}}>{s.label}</div>
+                <div className="svc-sub">{s.sub}</div>
+              </div>
+            </label>
+          ))}
+        </div>
+        <div className="btn-group">
+          <button className="btn btn-primary" onClick={scan}
+            disabled={!filePath || !selected.length || scanning}>
+            {scanning ? <><span className="spinner"/> Scansione...</> : "🔍 Avvia scansione"}
           </button>
+          {filePath && (
+            <button className="btn" style={{background:"#334155",color:"#94a3b8"}}
+              onClick={() => { setFilePath(null); setFileName(""); setResult(null); setError(null); }}>
+              ✕ Rimuovi file
+            </button>
+          )}
         </div>
       </div>
-
-      {error && <div className="verdict malicious">⚠️ Errore: {error}</div>}
-
+      {error && <div className="verdict malicious card">⚠️ Errore: {error}</div>}
       {result && (
         <div className="card">
-          <div className={verdictClass(result.overall_verdict)} style={{marginBottom:"1rem"}}>
-            {verdictIcon(result.overall_verdict)}
+          <div className={`verdict ${result.overall_verdict}`} style={{marginBottom:"1rem"}}>
+            {VERDICT_LABEL[result.overall_verdict]}
           </div>
-          <div style={{marginBottom:".75rem",fontSize:".8rem",color:"#64748b",wordBreak:"break-all"}}>
-            <strong>SHA256:</strong> {result.filehash}
-          </div>
+          <div className="hash-box"><strong>SHA256:</strong> {result.filehash}</div>
           <div className="service-results">
             {Object.entries(result.services).map(([name, data]) => (
               <div className="svc-card" key={name}>
                 <div className="svc-name">{name}</div>
                 <div className={`svc-${data.verdict}`}>{data.verdict.toUpperCase()}</div>
-                {data.detections>0 && (
-                  <div style={{color:"#f87171",marginTop:".3rem"}}>{data.detections}/{data.engines} engines</div>
-                )}
-                <div style={{color:"#64748b",marginTop:".3rem",fontSize:".8rem"}}>{data.details}</div>
+                {data.detections > 0 && <div className="svc-detections">{data.detections}/{data.engines} engines</div>}
+                <div className="svc-details">{data.details}</div>
               </div>
             ))}
           </div>

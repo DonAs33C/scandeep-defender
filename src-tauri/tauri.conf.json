@@ -1,6 +1,6 @@
 {
-  "productName": "Malware Scanner",
-  "version": "1.0.0",
+  "productName": "ScanDeep Defender",
+  "version": "1.0.2",
   "identifier": "com.scandeep",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -12,7 +12,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Malware Scanner",
+        "title": "ScanDeep Defender",
         "width": 1000,
         "height": 700,
         "resizable": true
