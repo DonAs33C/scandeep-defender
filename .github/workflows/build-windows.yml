@@ -21,11 +21,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: lts/*
           cache: 'npm'
 
-      - name: Install Rust
+      - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: 'src-tauri -> target'
 
       - name: Install npm deps
         run: npm install
@@ -33,13 +38,19 @@ jobs:
       - name: Generate icons
         run: python generate_icons.py
 
+      - name: Update Cargo dependencies
+        working-directory: src-tauri
+        run: cargo update
+        shell: bash
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: "ScanDeep Defender ${{ github.ref_name }}"
-          releaseBody: "Release automatica Windows."
+          releaseName: 'ScanDeep Defender ${{ github.ref_name }}'
+          releaseBody: 'Release automatica Windows.'
           releaseDraft: false
           prerelease: false
+          tauriScript: npx tauri
