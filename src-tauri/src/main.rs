@@ -18,12 +18,13 @@ use adapters::scanner_trait::ScanProvider;
 use adapters::{
     virustotal::VirusTotalAdapter,
     metadefender::MetaDefenderAdapter,
-    hybridanalysis::HybridAnalysisAdapter,
     cloudmersive::CloudmersiveAdapter,
-    clamav::ClamAvAdapter,
+    clamav::ClamAVAdapter,
 };
 
 fn main() {
+    tracing_subscriber::fmt::init();
+
     let db   = Arc::new(Database::new().expect("db init failed"));
     let keys = Arc::new(ApiKeys::new());
     keys.load_from_keyring();
@@ -31,9 +32,8 @@ fn main() {
     let providers: Vec<Arc<dyn ScanProvider>> = vec![
         Arc::new(VirusTotalAdapter::new(keys.vt.clone())),
         Arc::new(MetaDefenderAdapter::new(keys.md.clone())),
-        Arc::new(HybridAnalysisAdapter::new(keys.ha.clone())),
         Arc::new(CloudmersiveAdapter::new(keys.cm.clone())),
-        Arc::new(ClamAvAdapter::new()),
+        Arc::new(ClamAVAdapter::new()),
     ];
 
     let pipeline = Arc::new(ScanPipeline::new(providers, db.clone()));
@@ -42,14 +42,14 @@ fn main() {
     let state = Arc::new(AppState {
         db,
         pipeline,
-        queue,
+        queue:     queue.clone(),
         keys,
         auto_scan: std::sync::Mutex::new(false),
         config:    std::sync::RwLock::new(AppConfig::default()),
     });
 
     tauri::Builder::default()
-        .manage(state)
+        .manage(state.clone())
         .invoke_handler(tauri::generate_handler![
             commands::scan::scan_file,
             commands::scan::poll_result,
@@ -57,7 +57,14 @@ fn main() {
             commands::settings::save_api_keys,
             commands::settings::load_api_keys,
         ])
-        .setup(|_app| Ok(()))
+        .setup(move |app| {
+            watcher::file_watcher::start_watcher(
+                app.handle().clone(),
+                state.clone(),
+                queue.clone(),
+            );
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
