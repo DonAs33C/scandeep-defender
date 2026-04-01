@@ -1,20 +1,23 @@
 {
   "productName": "ScanDeep Defender",
-  "version": "2.0.0",
+  "version": "2.0.3",
   "identifier": "com.scandeep.defender",
   "build": {
-    "beforeDevCommand":   "npm run dev",
+    "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
-    "devUrl":   "http://localhost:1420",
+    "devUrl": "http://localhost:1420",
     "frontendDist": "../dist"
   },
   "app": {
     "withGlobalTauri": false,
     "windows": [{
       "title": "ScanDeep Defender",
-      "width": 1020, "height": 760,
-      "minWidth": 780, "minHeight": 600,
-      "resizable": true, "decorations": true
+      "width": 1020,
+      "height": 760,
+      "minWidth": 780,
+      "minHeight": 600,
+      "resizable": true,
+      "decorations": true
     }],
     "security": { "csp": null }
   },

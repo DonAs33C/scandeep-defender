@@ -1,14 +1,14 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useLangCtx } from "../LangContext";
 import { T, type Lang } from "../i18n";
 
 interface SettingsState { auto_scan:boolean; allow_cloud_upload:boolean; }
 const API_FIELDS = [
-  { key:"vt", label:"VirusTotal API Key",      color:"#f87171" },
-  { key:"md", label:"MetaDefender API Key",    color:"#fb923c" },
-  { key:"ha", label:"Hybrid Analysis API Key", color:"#a78bfa" },
-  { key:"cm", label:"Cloudmersive API Key",    color:"#34d399" },
+  { key:"vt", label:"VirusTotal API Key",      color:"#00e676" },
+  { key:"md", label:"MetaDefender API Key",    color:"#ffb300" },
+  { key:"ha", label:"Hybrid Analysis API Key", color:"#00bcd4" },
+  { key:"cm", label:"Cloudmersive API Key",    color:"#7aa3c8" },
 ];
 const API_LINKS = [
   { label:"VirusTotal",      url:"https://www.virustotal.com/gui/sign-up",         sub:"500 req/giorno gratis" },
@@ -22,7 +22,8 @@ export default function Settings() {
   const tr = T[lang].settings;
   const [keys, setKeys] = useState<Record<string,string>>({ vt:"", md:"", ha:"", cm:"" });
   const [s, setS] = useState<SettingsState>({ auto_scan:true, allow_cloud_upload:false });
-  const [saved, setSaved] = useState(false);
+  const [apiSaved, setApiSaved] = useState(false);
+  const [cfgSaved, setCfgSaved] = useState(false);
 
   useEffect(() => {
     invoke<Record<string,string>>("load_api_keys").then(k => setKeys({
@@ -32,12 +33,22 @@ export default function Settings() {
     setS({ auto_scan:st.auto_scan!==undefined?st.auto_scan:true, allow_cloud_upload:st.allow_cloud_upload??false });
   }, []);
 
-  const save = async () => {
+  const saveApiKeys = async () => {
     await invoke("save_api_keys", { vt:keys.vt, md:keys.md, ha:keys.ha, cm:keys.cm });
+    await invoke("set_watcher_keys", { vt:keys.vt, md:keys.md, ha:keys.ha, cm:keys.cm });
+    setApiSaved(true);
+    setTimeout(()=>setApiSaved(false), 2200);
+  };
+
+  const saveConfig = async () => {
     await invoke("set_auto_scan", { enabled:s.auto_scan });
-    await invoke("set_config", { allowCloudUpload:s.allow_cloud_upload, enabledProviders:["virustotal","metadefender","hybridanalysis","cloudmersive","clamav"] });
+    await invoke("set_config", {
+      allowCloudUpload:s.allow_cloud_upload,
+      enabledProviders:["virustotal","metadefender","hybridanalysis","cloudmersive","clamav"]
+    });
     localStorage.setItem("scandeep_ui", JSON.stringify(s));
-    setSaved(true); setTimeout(()=>setSaved(false), 2200);
+    setCfgSaved(true);
+    setTimeout(()=>setCfgSaved(false), 2200);
   };
 
   const openLink = (url:string) => invoke("open_browser",{url}).catch(console.error);
@@ -49,7 +60,8 @@ export default function Settings() {
         <div className="btn-group">
           {(["it","en"] as Lang[]).map(l=>(
             <button key={l} className={`btn ${lang===l?"btn-primary":""}`}
-              style={lang!==l?{background:"#334155",color:"#94a3b8"}:{}} onClick={()=>setLang(l)}>
+              style={lang!==l?{background:"#334155",color:"#94a3b8"}:{}}
+              onClick={()=>setLang(l)}>
               {l==="it"?tr.langIt:tr.langEn}
             </button>
           ))}
@@ -66,7 +78,9 @@ export default function Settings() {
           </div>
         ))}
         <div className="info-box" style={{marginTop:"0.5rem",fontSize:"0.82rem"}}>{tr.privacy}</div>
-        <div className="btn-group" style={{marginTop:"1rem"}}><button className="btn btn-primary" onClick={save}>{saved?tr.saved:tr.save}</button></div>
+        <div className="btn-group" style={{marginTop:"1rem"}}>
+          <button className="btn btn-primary" onClick={saveApiKeys}>{apiSaved?tr.saved:tr.save}</button>
+        </div>
       </div>
 
       <div className="card">
@@ -89,7 +103,9 @@ export default function Settings() {
           </label>
           <span style={{color:s.allow_cloud_upload?"#f87171":"#475569",fontWeight:700,fontSize:"0.85rem",minWidth:85}}>{s.allow_cloud_upload?"⚠️ ATTIVO":"🔒 OFF"}</span>
         </div>
-        <div className="btn-group" style={{marginTop:"1rem"}}><button className="btn btn-primary" onClick={save}>{saved?tr.saved:tr.save}</button></div>
+        <div className="btn-group" style={{marginTop:"1rem"}}>
+          <button className="btn btn-primary" onClick={saveConfig}>{cfgSaved?tr.saved:tr.save}</button>
+        </div>
       </div>
 
       <div className="card">
@@ -99,6 +115,8 @@ export default function Settings() {
           {tr.clamStep1} <button className="link-btn" onClick={()=>openLink("https://www.clamav.net/downloads")}>clamav.net/downloads</button><br/>
           {tr.clamStep2} <code style={{color:"#94a3b8"}}>clamscan</code> {tr.clamStep3}<br/>
           {tr.clamStep4} <code style={{color:"#94a3b8"}}>freshclam</code>
+          <br/><br/>
+          <strong>Icone app:</strong> usa i file `32x32.png`, `128x128.png`, `icon.ico` in `src-tauri/icons/` e verifica che `tauri.conf.json` punti a quei nomi.
         </div>
       </div>
 
@@ -108,7 +126,8 @@ export default function Settings() {
           {API_LINKS.map(link=>(
             <button key={link.url} onClick={()=>openLink(link.url)}
               style={{background:"#0f172a",border:"1px solid #334155",borderRadius:"0.5rem",padding:"0.85rem 1rem",textAlign:"left",cursor:"pointer",color:"inherit",transition:"border-color 0.18s"}}
-              onMouseEnter={e=>e.currentTarget.style.borderColor="#3b82f6"} onMouseLeave={e=>e.currentTarget.style.borderColor="#334155"}>
+              onMouseEnter={e=>e.currentTarget.style.borderColor="#3b82f6"}
+              onMouseLeave={e=>e.currentTarget.style.borderColor="#334155"}>
               <div style={{fontWeight:700,color:"#e2e8f0"}}>{link.label}</div>
               <div style={{color:"#64748b",fontSize:"0.78rem",marginTop:"0.2rem"}}>{link.sub}</div>
               <div style={{color:"#3b82f6",fontSize:"0.78rem",marginTop:"0.4rem"}}>🔗 Apri →</div>

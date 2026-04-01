@@ -11,7 +11,15 @@ pub fn save_api_keys(vt:String,md:String,ha:String,cm:String,state:tauri::State<
     for (id,key) in &keys_map {
         if !key.is_empty() { crypto::store_key(id,key).map_err(|e|e.to_string())?; }
     }
-    // Update live adapter keys
+    *state.keys.vt.lock().unwrap() = vt.clone();
+    *state.keys.md.lock().unwrap() = md.clone();
+    *state.keys.ha.lock().unwrap() = ha.clone();
+    *state.keys.cm.lock().unwrap() = cm.clone();
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_watcher_keys(vt:String,md:String,ha:String,cm:String,state:tauri::State<'_,Arc<AppState>>) -> Result<(),String> {
     *state.keys.vt.lock().unwrap() = vt;
     *state.keys.md.lock().unwrap() = md;
     *state.keys.ha.lock().unwrap() = ha;

@@ -43,6 +43,7 @@ fn main() {
             commands::history::get_history,
             commands::history::clear_history,
             commands::settings::save_api_keys,
+            commands::settings::set_watcher_keys,
             commands::settings::load_api_keys,
             commands::settings::set_auto_scan,
             commands::settings::set_config,
