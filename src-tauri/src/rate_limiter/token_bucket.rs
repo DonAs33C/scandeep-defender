@@ -1,77 +1,79 @@
-
 use std::sync::Mutex;
-use std::time::Instant;
-use tokio::time::{sleep, Duration};
+use tokio::time::{sleep, Duration, Instant};
 
-/// Thread-safe token bucket for rate limiting.
 pub struct TokenBucket {
+    capacity:     u32,
     tokens:       Mutex<f64>,
-    capacity:     f64,
-    refill_rate:  f64,   // tokens per second
+    refill_rate:  f64,           // token/secondo
     last_refill:  Mutex<Instant>,
 }
 
 impl TokenBucket {
-    /// `capacity`: max burst, `requests_per_minute`: steady-state rate.
-    pub fn new(capacity: f64, requests_per_minute: f64) -> Self {
+    pub fn new(capacity: u32, refill_per_second: f64) -> Self {
         Self {
-            tokens:      Mutex::new(capacity),
             capacity,
-            refill_rate: requests_per_minute / 60.0,
+            tokens:      Mutex::new(capacity as f64),
+            refill_rate: refill_per_second,
             last_refill: Mutex::new(Instant::now()),
         }
     }
 
     fn refill(&self) {
-        let now = Instant::now();
         let mut last = self.last_refill.lock().unwrap();
-        let elapsed = now.duration_since(*last).as_secs_f64();
-        *last = now;
+        let elapsed = last.elapsed().as_secs_f64();
+        *last = Instant::now();
         let mut tokens = self.tokens.lock().unwrap();
-        *tokens = (*tokens + elapsed * self.refill_rate).min(self.capacity);
+        *tokens = (*tokens + elapsed * self.refill_rate).min(self.capacity as f64);
     }
 
-    pub fn try_acquire(&self) -> bool {
-        self.refill();
-        let mut tokens = self.tokens.lock().unwrap();
-        if *tokens >= 1.0 { *tokens -= 1.0; true } else { false }
-    }
-
-    /// Async: wait until a token is available.
+    #[allow(dead_code)]   // sarà usato dal rate-limiter prima di ogni chiamata API
     pub async fn acquire(&self) {
         loop {
-            if self.try_acquire() { return; }
-            sleep(Duration::from_millis(500)).await;
+            self.refill();
+            let mut tokens = self.tokens.lock().unwrap();
+            if *tokens >= 1.0 {
+                *tokens -= 1.0;
+                return;
+            }
+            drop(tokens);
+            sleep(Duration::from_millis(100)).await;
         }
     }
 }
 
-/// Per-API daily counter (persisted across restarts via SQLite).
 pub struct DailyQuota {
-    used:      Mutex<u32>,
-    max_daily: u32,
-    date:      Mutex<chrono::NaiveDate>,
+    limit:    u32,
+    used:     Mutex<u32>,
+    reset_at: Mutex<Instant>,
 }
 
 impl DailyQuota {
-    pub fn new(max_daily: u32) -> Self {
-        Self { used: Mutex::new(0), max_daily, date: Mutex::new(chrono::Utc::now().date_naive()) }
+    pub fn new(limit: u32) -> Self {
+        Self {
+            limit,
+            used:     Mutex::new(0),
+            reset_at: Mutex::new(Instant::now() + Duration::from_secs(86400)),
+        }
     }
 
-    fn reset_if_new_day(&self) {
-        let today = chrono::Utc::now().date_naive();
-        let mut d = self.date.lock().unwrap();
-        if *d != today { *d = today; *self.used.lock().unwrap() = 0; }
-    }
-
-    pub fn try_consume(&self) -> bool {
-        self.reset_if_new_day();
+    pub fn consume(&self) -> bool {
+        let mut reset_at = self.reset_at.lock().unwrap();
+        if Instant::now() >= *reset_at {
+            *self.used.lock().unwrap() = 0;
+            *reset_at = Instant::now() + Duration::from_secs(86400);
+        }
         let mut used = self.used.lock().unwrap();
-        if *used < self.max_daily { *used += 1; true } else { false }
+        if *used < self.limit {
+            *used += 1;
+            true
+        } else {
+            false
+        }
     }
 
+    #[allow(dead_code)]   // esposto per la UI "quota rimanente oggi"
     pub fn remaining(&self) -> u32 {
-        self.reset_if_new_day();
-        self.max_daily.saturating_sub(*self.used.lock().unwrap())
+        let used = *self.used.lock().unwrap();
+        self.limit.saturating_sub(used)
     }
 }

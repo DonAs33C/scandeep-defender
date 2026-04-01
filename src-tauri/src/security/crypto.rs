@@ -1,39 +1,24 @@
+use anyhow::Result;
+use keyring::Entry;
 
-use anyhow::{Context, Result};
+const SERVICE: &str = "scandeep-defender";
 
-const SERVICE_NAME: &str = "scandeep-defender";
-
-pub fn store_key(provider: &str, key: &str) -> Result<()> {
-    let entry = keyring::Entry::new(SERVICE_NAME, provider)
-        .context("Creazione entry keyring fallita")?;
-    entry.set_password(key).context("Salvataggio chiave fallito")?;
+pub fn set_key(provider: &str, value: &str) -> Result<()> {
+    Entry::new(SERVICE, provider)?.set_password(value)?;
     Ok(())
 }
 
 pub fn get_key(provider: &str) -> Result<Option<String>> {
-    let entry = keyring::Entry::new(SERVICE_NAME, provider)
-        .context("Creazione entry keyring fallita")?;
-    match entry.get_password() {
-        Ok(k)                               => Ok(Some(k)),
-        Err(keyring::Error::NoEntry)        => Ok(None),
-        Err(keyring::Error::NoStorageAccess(_)) => Ok(None),
-        Err(e)                              => Err(anyhow::anyhow!("{}", e)),
+    match Entry::new(SERVICE, provider)?.get_password() {
+        Ok(v) if v.is_empty() => Ok(None),
+        Ok(v)                 => Ok(Some(v)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e)                => Err(e.into()),
     }
 }
 
-/// FIX: delete_credential non esiste in keyring v2 → usa delete_password
+#[allow(dead_code)]   // usato dalla pagina Impostazioni quando l'utente rimuove una chiave
 pub fn delete_key(provider: &str) -> Result<()> {
-    let entry = keyring::Entry::new(SERVICE_NAME, provider)
-        .context("Creazione entry keyring fallita")?;
-    match entry.delete_password() {
-        Ok(_)                        => Ok(()),
-        Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e)                       => Err(anyhow::anyhow!("{}", e)),
-    }
-}
-
-pub fn get_all_keys(providers: &[&str]) -> std::collections::HashMap<String, String> {
-    providers.iter().filter_map(|&p| {
-        get_key(p).ok().flatten().map(|k| (p.to_string(), k))
-    }).collect()
+    Entry::new(SERVICE, provider)?.delete_credential()?;
+    Ok(())
 }

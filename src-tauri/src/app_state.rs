@@ -1,4 +1,3 @@
-
 use std::sync::{Arc, Mutex, RwLock};
 use crate::engine::{pipeline::ScanPipeline, queue::JobQueue};
 use crate::persistence::database::Database;
@@ -31,10 +30,10 @@ impl ApiKeys {
 
     pub fn load_from_keyring(&self) {
         let pairs = [
-            ("virustotal",    &self.vt),
-            ("metadefender",  &self.md),
-            ("hybridanalysis",&self.ha),
-            ("cloudmersive",  &self.cm),
+            ("virustotal",     &self.vt),
+            ("metadefender",   &self.md),
+            ("hybridanalysis", &self.ha),
+            ("cloudmersive",   &self.cm),
         ];
         for (id, mtx) in &pairs {
             if let Ok(Some(k)) = crypto::get_key(id) {
@@ -48,6 +47,7 @@ impl ApiKeys {
 pub struct AppState {
     pub db:        Arc<Database>,
     pub pipeline:  Arc<ScanPipeline>,
+    #[allow(dead_code)]          // sarà usato per lo scan asincrono in coda
     pub queue:     Arc<JobQueue>,
     pub keys:      Arc<ApiKeys>,
     pub auto_scan: Mutex<bool>,
