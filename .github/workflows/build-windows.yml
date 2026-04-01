@@ -30,7 +30,7 @@ jobs:
           workspaces: "src-tauri -> target"
 
       - name: Install npm deps
-        run: npm ci
+        run: npm install
 
       - name: Update Cargo dependencies
         working-directory: src-tauri
