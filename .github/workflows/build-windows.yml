@@ -1,12 +1,9 @@
-name: Build Windows Release
+name: Build ScanDeep Defender
 
 on:
   push:
     tags:
-      - 'v*'
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      - "v*"
 
 jobs:
   build:
@@ -22,7 +19,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
-          cache: 'npm'
+          cache: "npm"
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -30,10 +27,10 @@ jobs:
       - name: Setup Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: 'src-tauri -> target'
+          workspaces: "src-tauri -> target"
 
       - name: Install npm deps
-        run: npm install
+        run: npm ci
 
       - name: Update Cargo dependencies
         working-directory: src-tauri
@@ -46,8 +43,29 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'ScanDeep Defender ${{ github.ref_name }}'
-          releaseBody: 'Automatic Release Windows'
+          releaseName: "ScanDeep Defender ${{ github.ref_name }}"
+          releaseBody: "Automatic Release Windows"
           releaseDraft: false
           prerelease: false
           tauriScript: npx tauri
+
+      - name: Upload installer (.exe)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ScanDeep-Defender-Setup
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: warn
+
+      - name: Upload installer (.msi)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ScanDeep-Defender-MSI
+          path: src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: warn
+
+      - name: Upload portable (.zip)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ScanDeep-Defender-portable
+          path: src-tauri/target/release/bundle/nsis/*.zip
+          if-no-files-found: warn
