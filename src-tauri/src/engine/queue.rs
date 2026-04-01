@@ -3,7 +3,7 @@ use crate::engine::job::ScanJob;
 
 pub struct JobQueue {
     #[allow(dead_code)]
-    sender: mpsc::UnboundedSender<ScanJob>,
+    sender:   mpsc::UnboundedSender<ScanJob>,
     receiver: tokio::sync::Mutex<mpsc::UnboundedReceiver<ScanJob>>,
 }
 
@@ -22,10 +22,7 @@ impl JobQueue {
     }
 
     #[allow(dead_code)]
-    pub fn len_hint(&self) -> usize {
-        // mpsc non espone la lunghezza — stima non disponibile
-        0
-    }
+    pub fn len_hint(&self) -> usize { 0 }
 
     pub async fn next(&self) -> Option<ScanJob> {
         self.receiver.lock().await.recv().await

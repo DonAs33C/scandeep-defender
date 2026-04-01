@@ -29,13 +29,13 @@ impl ApiKeys {
     }
 
     pub fn load_from_keyring(&self) {
-        let pairs = [
+        let pairs: &[(&str, &Arc<Mutex<String>>)] = &[
             ("virustotal",     &self.vt),
             ("metadefender",   &self.md),
             ("hybridanalysis", &self.ha),
             ("cloudmersive",   &self.cm),
         ];
-        for (id, mtx) in &pairs {
+        for (id, mtx) in pairs {
             if let Ok(Some(k)) = crypto::get_key(id) {
                 *mtx.lock().unwrap() = k;
                 tracing::info!("Loaded key for {}", id);
@@ -47,7 +47,7 @@ impl ApiKeys {
 pub struct AppState {
     pub db:        Arc<Database>,
     pub pipeline:  Arc<ScanPipeline>,
-    #[allow(dead_code)]          // sarà usato per lo scan asincrono in coda
+    #[allow(dead_code)]
     pub queue:     Arc<JobQueue>,
     pub keys:      Arc<ApiKeys>,
     pub auto_scan: Mutex<bool>,

@@ -8,7 +8,7 @@ use crate::adapters::scanner_trait::{ScanProvider, ProviderResult, Verdict};
 
 pub struct CloudmersiveAdapter {
     key:    Arc<Mutex<String>>,
-    #[allow(dead_code)]          // usato nelle chiamate HTTP future
+    #[allow(dead_code)]
     client: Client,
 }
 
@@ -39,57 +39,41 @@ impl ScanProvider for CloudmersiveAdapter {
         if key.is_empty() {
             return ProviderResult::unavailable(self.id(), "Nessuna API key configurata");
         }
-
         let bytes = match tokio::fs::read(path).await {
-            Ok(b) => b,
+            Ok(b)  => b,
             Err(e) => return ProviderResult::error(self.id(), &e.to_string()),
         };
-
         let part = reqwest::multipart::Part::bytes(bytes)
             .file_name(filename.to_string())
             .mime_str("application/octet-stream")
             .unwrap_or_else(|_| reqwest::multipart::Part::bytes(vec![]));
-
         let form = reqwest::multipart::Form::new().part("inputFile", part);
-
         let client = Client::new();
         let resp = match client
             .post("https://api.cloudmersive.com/virus/scan/file")
             .header("Apikey", &key)
             .multipart(form)
-            .send()
-            .await
+            .send().await
         {
-            Ok(r) => r,
+            Ok(r)  => r,
             Err(e) => return ProviderResult::error(self.id(), &e.to_string()),
         };
-
         if !resp.status().is_success() {
-            return ProviderResult::error(
-                self.id(),
-                &format!("HTTP {}", resp.status()),
-            );
+            return ProviderResult::error(self.id(), &format!("HTTP {}", resp.status()));
         }
-
         let json: Value = match resp.json().await {
-            Ok(j) => j,
+            Ok(j)  => j,
             Err(e) => return ProviderResult::error(self.id(), &e.to_string()),
         };
-
         let clean   = json["CleanResult"].as_bool().unwrap_or(false);
         let threats = json["FoundViruses"].as_array().map(|a| a.len() as u32).unwrap_or(0);
-
         ProviderResult {
             provider_id:   self.id().into(),
             verdict:       if clean { Verdict::Clean } else { Verdict::Malicious },
             detections:    threats,
             total_engines: 1,
-            details:       if clean {
-                "Nessuna minaccia rilevata".into()
-            } else {
-                format!("{} minacce rilevate", threats)
-            },
-            poll_id: None,
+            details:       if clean { "Nessuna minaccia".into() } else { format!("{} minacce", threats) },
+            poll_id:       None,
         }
     }
 
