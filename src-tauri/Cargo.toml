@@ -7,7 +7,6 @@ edition = "2026"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-open = "5"
 tauri               = { version = "2",    features = [] }
 tauri-plugin-dialog = "2"
 async-trait         = "0.1"
