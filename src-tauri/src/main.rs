@@ -51,11 +51,25 @@ fn main() {
     tauri::Builder::default()
         .manage(state.clone())
         .invoke_handler(tauri::generate_handler![
+            // scan
             commands::scan::scan_file,
             commands::scan::poll_result,
             commands::scan::check_duplicate,
+            // settings
             commands::settings::save_api_keys,
             commands::settings::load_api_keys,
+            commands::settings::set_watcher_keys,
+            commands::settings::set_auto_scan,
+            commands::settings::set_config,
+            commands::settings::open_browser,
+            // history
+            commands::history::get_history,
+            commands::history::clear_history,
+            // quarantine
+            commands::quarantine::quarantine_file,
+            commands::quarantine::restore_file,
+            commands::quarantine::list_quarantine,
+            commands::quarantine::delete_permanently,
         ])
         .setup(move |app| {
             watcher::file_watcher::start_watcher(

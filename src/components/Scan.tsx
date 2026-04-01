@@ -19,7 +19,7 @@ type Step = {provider:string; status:string; message:string};
 
 export default function Scan() {
   const { lang } = useLangCtx();
-  const tr = T[lang].scan;
+  const tr = T[lang].scanner;
   const [filePath, setFilePath]   = useState<string | null>(null);
   const [filename, setFilename]   = useState("");
   const [selected, setSelected]   = useState<string[]>(["virustotal"]);
