@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import splashImg from "../assets/splash.jpg";
+import splashImg from "../assets/splash.png";
 
 interface Props { onDone: () => void; }
 
