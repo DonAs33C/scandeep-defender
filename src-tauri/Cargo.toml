@@ -1,10 +1,12 @@
+
 [package]
 name    = "scandeep-defender"
 version = "2.0.0"
 edition = "2021"
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build   = { version = "2", features = [] }
+winresource   = "0.1"
 
 [dependencies]
 tauri               = { version = "2",    features = [] }
@@ -27,3 +29,4 @@ anyhow              = "1"
 tracing             = "0.1"
 tracing-subscriber  = "0.3"
 glob                = "0.3"
+winresource         = "0.1"

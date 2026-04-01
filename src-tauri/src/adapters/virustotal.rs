@@ -1,64 +1,181 @@
 
-use std::path::Path;
-use std::sync::{Arc,Mutex};
 use async_trait::async_trait;
-use super::scanner_trait::{ScanProvider,ProviderResult,Verdict};
+use std::path::Path;
+use std::sync::{Arc, Mutex};
+use reqwest::{Client, multipart};
+use serde_json::Value;
+use tokio::time::{sleep, Duration};
 
-pub struct VirusTotalAdapter { key:Arc<Mutex<String>>, client:reqwest::Client }
-impl VirusTotalAdapter { pub fn new(k:Arc<Mutex<String>>)->Self{ Self{key:k,client:reqwest::Client::new()} } }
-fn k(a:&Arc<Mutex<String>>)->String{ a.lock().unwrap().clone() }
+use crate::adapters::scanner_trait::{ScanProvider, ProviderResult, Verdict};
+
+const BASE: &str = "https://www.virustotal.com/api/v3";
+
+pub struct VirusTotalAdapter {
+    client: Client,
+    api_key: Arc<Mutex<String>>,
+}
+
+impl VirusTotalAdapter {
+    pub fn new(api_key: Arc<Mutex<String>>) -> Self {
+        Self { client: Client::new(), api_key }
+    }
+
+    fn key(&self) -> String {
+        self.api_key.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
+}
 
 #[async_trait]
 impl ScanProvider for VirusTotalAdapter {
-    fn id(&self)->&'static str{"virustotal"} fn name(&self)->&'static str{"VirusTotal"}
-    fn is_cloud(&self)->bool{true} fn is_enabled(&self)->bool{!k(&self.key).is_empty()}
+    fn id(&self)   -> &'static str { "virustotal" }
+    fn name(&self) -> &'static str { "VirusTotal" }
+    fn is_cloud(&self) -> bool { true }
+    fn is_enabled(&self) -> bool { !self.key().is_empty() }
+    fn supports_file_upload(&self) -> bool { true }
 
-    async fn scan_hash(&self,hash:&str)->ProviderResult {
-        let key=k(&self.key); if key.is_empty(){return ProviderResult::unavailable("virustotal","API key non configurata");}
-        match self.client.get(format!("https://www.virustotal.com/api/v3/files/{}",hash)).header("x-apikey",&key).send().await {
-            Ok(r) if r.status().is_success() => {
-                if let Ok(j)=r.json::<serde_json::Value>().await {
-                    let s=&j["data"]["attributes"]["last_analysis_stats"];
-                    let mal=s["malicious"].as_u64().unwrap_or(0) as u32; let sus=s["suspicious"].as_u64().unwrap_or(0) as u32;
-                    let tot=mal+sus+s["harmless"].as_u64().unwrap_or(0) as u32+s["undetected"].as_u64().unwrap_or(0) as u32;
-                    return ProviderResult{provider_id:"virustotal".into(),verdict:if mal>0{Verdict::Malicious}else if sus>0{Verdict::Suspicious}else{Verdict::Clean},detections:mal+sus,total_engines:tot,details:format!("{} rilevazioni su {} engine",mal+sus,tot),poll_id:None};
-                } ProviderResult::error("virustotal","Risposta non valida")
-            },
-            Ok(r) if r.status()==404 => ProviderResult{provider_id:"virustotal".into(),verdict:Verdict::Unavailable,detections:0,total_engines:0,details:"Hash non trovato — upload richiesto".into(),poll_id:None},
-            Ok(r) => ProviderResult::error("virustotal",&format!("HTTP {}",r.status())),
-            Err(e)=> ProviderResult::error("virustotal",&e.to_string()),
+    async fn scan_hash(&self, hash: &str) -> ProviderResult {
+        let key = self.key();
+        if key.is_empty() {
+            return ProviderResult::unavailable(self.id(), "Nessuna API key configurata");
+        }
+
+        let url = format!("{}/files/{}", BASE, hash);
+        let resp = match self.client.get(&url).header("x-apikey", &key).send().await {
+            Ok(r) => r,
+            Err(e) => return ProviderResult::error(self.id(), &e.to_string()),
+        };
+
+        match resp.status().as_u16() {
+            200 => parse_vt_response(self.id(), resp.json::<Value>().await.ok()),
+            404 => ProviderResult::unavailable(self.id(), "Hash non trovato — verrà caricato il file"),
+            401 => ProviderResult::error(self.id(), "API key non valida"),
+            429 => ProviderResult::error(self.id(), "Rate limit superato"),
+            s   => ProviderResult::error(self.id(), &format!("HTTP {}", s)),
         }
     }
-    async fn scan_file(&self,path:&Path,_hash:&str,filename:&str)->ProviderResult {
-        let key=k(&self.key); if key.is_empty(){return ProviderResult::unavailable("virustotal","API key non configurata");}
-        let bytes=match tokio::fs::read(path).await{Ok(b)=>b,Err(e)=>return ProviderResult::error("virustotal",&e.to_string())};
-        let form=reqwest::multipart::Form::new().part("file",reqwest::multipart::Part::bytes(bytes).file_name(filename.to_string()));
-        match self.client.post("https://www.virustotal.com/api/v3/files").header("x-apikey",&key).multipart(form).send().await {
-            Ok(r) if r.status().is_success() => {
-                if let Ok(j)=r.json::<serde_json::Value>().await { let pid=j["data"]["id"].as_str().map(|s|s.to_string()); return ProviderResult::pending("virustotal",pid,"File caricato, aggiorna tra 1-2 min"); }
-                ProviderResult::pending("virustotal",None,"File caricato su VirusTotal")
-            },
-            Ok(r)=>ProviderResult::error("virustotal",&format!("Upload HTTP {}",r.status())),
-            Err(e)=>ProviderResult::error("virustotal",&e.to_string()),
+
+    async fn scan_file(&self, path: &Path, _hash: &str, filename: &str) -> ProviderResult {
+        let key = self.key();
+        if key.is_empty() {
+            return ProviderResult::unavailable(self.id(), "Nessuna API key configurata");
         }
+
+        let bytes = match tokio::fs::read(path).await {
+            Ok(b) => b,
+            Err(e) => return ProviderResult::error(self.id(), &e.to_string()),
+        };
+
+        let part = multipart::Part::bytes(bytes)
+            .file_name(filename.to_string())
+            .mime_str("application/octet-stream")
+            .unwrap_or_else(|_| multipart::Part::bytes(vec![]));
+
+        let form = multipart::Form::new().part("file", part);
+
+        let resp = match self.client
+            .post(format!("{}/files", BASE))
+            .header("x-apikey", &key)
+            .multipart(form)
+            .send().await
+        {
+            Ok(r) => r,
+            Err(e) => return ProviderResult::error(self.id(), &e.to_string()),
+        };
+
+        if !resp.status().is_success() {
+            return ProviderResult::error(self.id(), &format!("Upload HTTP {}", resp.status()));
+        }
+
+        let json: Value = match resp.json().await {
+            Ok(j) => j,
+            Err(e) => return ProviderResult::error(self.id(), &e.to_string()),
+        };
+
+        let analysis_id = json["data"]["id"].as_str().unwrap_or("").to_string();
+        if analysis_id.is_empty() {
+            return ProviderResult::error(self.id(), "Nessun analysis_id ricevuto da VT");
+        }
+
+        // poll fino a completamento (max 12 tentativi × 10s = 2 min)
+        for attempt in 0..12 {
+            sleep(Duration::from_secs(if attempt == 0 { 5 } else { 10 })).await;
+            let r = self.poll_result(&analysis_id).await;
+            if r.verdict != Verdict::Pending { return r; }
+        }
+
+        ProviderResult::pending(self.id(), Some(analysis_id), "Analisi in corso su VirusTotal")
     }
-    async fn poll_result(&self,poll_id:&str)->ProviderResult {
-        let key=k(&self.key); if key.is_empty(){return ProviderResult::unavailable("virustotal","API key non configurata");}
-        match self.client.get(format!("https://www.virustotal.com/api/v3/analyses/{}",poll_id)).header("x-apikey",&key).send().await {
-            Ok(r) if r.status().is_success() => {
-                if let Ok(j)=r.json::<serde_json::Value>().await {
-                    let st=j["data"]["attributes"]["status"].as_str().unwrap_or("");
-                    if st=="completed" {
-                        let s=&j["data"]["attributes"]["stats"];
-                        let mal=s["malicious"].as_u64().unwrap_or(0) as u32; let sus=s["suspicious"].as_u64().unwrap_or(0) as u32;
-                        let tot=mal+sus+s["harmless"].as_u64().unwrap_or(0) as u32+s["undetected"].as_u64().unwrap_or(0) as u32;
-                        return ProviderResult{provider_id:"virustotal".into(),verdict:if mal>0{Verdict::Malicious}else if sus>0{Verdict::Suspicious}else{Verdict::Clean},detections:mal+sus,total_engines:tot,details:format!("{} rilevazioni su {} engine",mal+sus,tot),poll_id:None};
-                    }
-                    return ProviderResult::pending("virustotal",Some(poll_id.to_string()),&format!("Stato: {}",st));
-                } ProviderResult::error("virustotal","Risposta non valida")
-            },
-            Ok(r)=>ProviderResult::error("virustotal",&format!("HTTP {}",r.status())),
-            Err(e)=>ProviderResult::error("virustotal",&e.to_string()),
+
+    async fn poll_result(&self, poll_id: &str) -> ProviderResult {
+        let key = self.key();
+        if key.is_empty() {
+            return ProviderResult::error(self.id(), "API key mancante");
         }
+
+        let url = format!("{}/analyses/{}", BASE, poll_id);
+        let resp = match self.client.get(&url).header("x-apikey", &key).send().await {
+            Ok(r) => r,
+            Err(e) => return ProviderResult::error(self.id(), &e.to_string()),
+        };
+
+        if !resp.status().is_success() {
+            return ProviderResult::error(self.id(), &format!("HTTP {}", resp.status()));
+        }
+
+        let json: Value = match resp.json().await {
+            Ok(j) => j,
+            Err(e) => return ProviderResult::error(self.id(), &e.to_string()),
+        };
+
+        let status = json["data"]["attributes"]["status"].as_str().unwrap_or("");
+        if status == "queued" || status == "in-progress" {
+            return ProviderResult::pending(self.id(), Some(poll_id.into()), "Analisi in corso");
+        }
+
+        parse_vt_response(self.id(), Some(json))
+    }
+}
+
+fn parse_vt_response(pid: &str, json: Option<Value>) -> ProviderResult {
+    let json = match json {
+        Some(j) => j,
+        None => return ProviderResult::error(pid, "Risposta vuota da VirusTotal"),
+    };
+
+    // Il path cambia tra /files/{hash} e /analyses/{id}
+    let stats = json["data"]["attributes"]["last_analysis_stats"]
+        .as_object()
+        .or_else(|| json["data"]["attributes"]["stats"].as_object());
+
+    let stats = match stats {
+        Some(s) => s,
+        None => return ProviderResult::error(pid, "Struttura risposta VT non riconosciuta"),
+    };
+
+    let malicious  = stats.get("malicious").and_then(|v| v.as_u64()).unwrap_or(0);
+    let suspicious = stats.get("suspicious").and_then(|v| v.as_u64()).unwrap_or(0);
+    let undetected = stats.get("undetected").and_then(|v| v.as_u64()).unwrap_or(0);
+    let harmless   = stats.get("harmless").and_then(|v| v.as_u64()).unwrap_or(0);
+    let total = malicious + suspicious + undetected + harmless;
+
+    let verdict = if malicious > 0 {
+        Verdict::Malicious
+    } else if suspicious > 0 {
+        Verdict::Suspicious
+    } else if total > 0 {
+        Verdict::Clean
+    } else {
+        Verdict::Unavailable
+    };
+
+    let details = format!("{}/{} engine positivi", malicious, total);
+
+    ProviderResult {
+        provider_id:   pid.into(),
+        verdict,
+        detections:    malicious as u32,
+        total_engines: total as u32,
+        details,
+        poll_id:       None,
     }
 }
