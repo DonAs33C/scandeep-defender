@@ -1,12 +1,15 @@
 [package]
 name    = "scandeep-defender"
-version = "2.1.0"
-edition = "2024"
+version = "2.1.1"
+edition = "2021"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+tauri-plugin-fs = "2"
+tauri-plugin-opener = "2"
+open = "5"
 tauri               = { version = "2",    features = [] }
 tauri-plugin-dialog = "2"
 async-trait         = "0.1"
@@ -21,7 +24,6 @@ uuid                = { version = "1",    features = ["v4", "serde"] }
 chrono              = { version = "0.4",  features = ["serde"] }
 dirs                = "5"
 notify              = "6"
-open                = "5"
 keyring             = "2"
 anyhow              = "1"
 tracing             = "0.1"

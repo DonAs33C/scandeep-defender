@@ -35,7 +35,7 @@ export default function SplashScreen({ onDone }: Props) {
         <div className="splash-bar-wrap">
           <div className="splash-bar" style={{ width: `${progress}%` }} />
         </div>
-        <div className="splash-label">{progress < 100 ? `Inizializzazione... ${progress}%` : "✅ Pronto"}</div>
+        <div className="splash-label">{progress < 100 ? `Inizializzazione... ${progress}%` : "Pronto"}</div>
       </div>
     </div>
   );
