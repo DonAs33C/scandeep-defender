@@ -34,3 +34,96 @@ impl RiskScorer {
         score.min(100.0) as u8
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+    use crate::adapters::scanner_trait::{ProviderResult, Verdict};
+
+    fn make_result(verdict: Verdict, detections: u32, total_engines: u32) -> ProviderResult {
+        ProviderResult {
+            provider_id: "test".into(),
+            verdict,
+            detections,
+            total_engines,
+            details: "test".into(),
+            poll_id: None,
+        }
+    }
+
+    #[test]
+    fn returns_zero_for_empty_results() {
+        let score = RiskScorer::calculate(&[], Path::new("test.txt"));
+        assert_eq!(score, 0);
+    }
+
+    #[test]
+    fn calculates_detection_ratio_correctly() {
+        // 1 detection out of 10 engines = 10% * 60 = 6 points
+        let results = vec![make_result(Verdict::Clean, 1, 10)];
+        let score = RiskScorer::calculate(&results, Path::new("test.txt"));
+        assert_eq!(score, 6);
+    }
+
+    #[test]
+    fn calculates_malicious_verdict_boost() {
+        // 2 malicious results = 2 * 5 = 10 points (capped at 20)
+        let results = vec![
+            make_result(Verdict::Malicious, 5, 10),
+            make_result(Verdict::Malicious, 3, 10),
+        ];
+        let score = RiskScorer::calculate(&results, Path::new("test.txt"));
+        assert_eq!(score, 10 + 20); // detection ratio (80% * 60 = 48) + malicious boost (10) = 58
+    }
+
+    #[test]
+    fn malicious_verdict_boost_caps_at_20() {
+        // 6 malicious results = 30 points, but capped at 20
+        let results = vec![
+            make_result(Verdict::Malicious, 1, 1),
+            make_result(Verdict::Malicious, 1, 1),
+            make_result(Verdict::Malicious, 1, 1),
+            make_result(Verdict::Malicious, 1, 1),
+            make_result(Verdict::Malicious, 1, 1),
+            make_result(Verdict::Malicious, 1, 1),
+        ];
+        let score = RiskScorer::calculate(&results, Path::new("test.txt"));
+        // 100% detection = 60 + 20 (capped) = 80
+        assert_eq!(score, 80);
+    }
+
+    #[test]
+    fn adds_high_risk_extension_score() {
+        let results = vec![make_result(Verdict::Clean, 0, 10)];
+        let score = RiskScorer::calculate(&results, Path::new("malware.exe"));
+        assert_eq!(score, 20); // 0 detection + 20 for .exe
+    }
+
+    #[test]
+    fn adds_medium_risk_extension_score() {
+        let results = vec![make_result(Verdict::Clean, 0, 10)];
+        let score = RiskScorer::calculate(&results, Path::new("archive.zip"));
+        assert_eq!(score, 8); // 0 detection + 8 for .zip
+    }
+
+    #[test]
+    fn caps_score_at_100() {
+        // Maximum possible: 100% detection (60) + 20 malicious boost + 20 high risk ext = 100
+        let results = vec![
+            make_result(Verdict::Malicious, 10, 10),
+            make_result(Verdict::Malicious, 10, 10),
+            make_result(Verdict::Malicious, 10, 10),
+            make_result(Verdict::Malicious, 10, 10),
+        ];
+        let score = RiskScorer::calculate(&results, Path::new("virus.exe"));
+        assert_eq!(score, 100);
+    }
+
+    #[test]
+    fn case_insensitive_extension_check() {
+        let results = vec![make_result(Verdict::Clean, 0, 10)];
+        let score = RiskScorer::calculate(&results, Path::new("MALWARE.EXE"));
+        assert_eq!(score, 20);
+    }
+}

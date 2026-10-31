@@ -1,0 +1,87 @@
+# ScanDeep Defender - Cargo Deny Configuration
+# Vulnerability and license audit policies for CI
+
+[advisories]
+# Vulnerability database: https://github.com/RustSec/advisory-db
+# Check for security vulnerabilities in dependencies
+db = "https://github.com/RustSec/advisory-db"
+# Path to local copy of advisory database (optional)
+# db-path = "~/.cargo/advisory-db"
+
+# Fail on these severity levels
+# Options: info, low, medium, high, critical
+# Default: high, critical
+severity = "high"
+
+# Ignore specific vulnerability IDs (use sparingly, with justification)
+# ignore = []
+
+# Ignore vulnerabilities in these crates (use sparingly)
+# ignore-crates = []
+
+[licenses]
+# License policy for dependencies
+# Allow these SPDX license identifiers
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "Unicode-DFS-2016",
+  "MPL-2.0",
+  "CC0-1.0",
+  "Unlicense",
+  "0BSD",
+  "CC-BY-4.0",
+  "CC-BY-3.0",
+  "CC-BY-2.0",
+  "OpenSSL",
+]
+
+# Deny these licenses
+deny = [
+  "AGPL-3.0",
+  "GPL-3.0",
+  "LGPL-3.0",
+  "GPL-2.0",
+  "LGPL-2.0",
+  "SSPL-1.0",
+]
+
+# Allow licenses by crate (override for specific crates)
+# allow-by-crate = { "crate-name" = ["LICENSE-ID"] }
+
+# Require license files to be present
+require-license-file = false
+
+[bans]
+# Ban specific crate versions or crates entirely
+# deny = { name = "bad-crate", version = "1.0.0" }
+
+# Allow specific crate versions that would otherwise be denied
+# allow = { name = "good-crate", version = "2.0.0" }
+
+# Multiple versions of the same crate in the dependency tree
+multiple-versions = "warn"
+
+# Crates that have been yanked from crates.io
+yanked = "deny"
+
+[sources]
+# Allow only these registries (crates.io is implicit)
+allow-unknown-registries = false
+
+# Allow git sources
+allow-git = true
+
+# Allow path sources (local dependencies)
+allow-path = false
+
+[metadata]
+# Project metadata for audit reports
+name = "ScanDeep Defender"
+repository = "https://github.com/DonAs33/ScanDeep-Defender"
+description = "Windows desktop malware scanner with multi-engine cloud and local scanning"

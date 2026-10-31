@@ -18,6 +18,7 @@ use adapters::scanner_trait::ScanProvider;
 use adapters::{
     virustotal::VirusTotalAdapter,
     metadefender::MetaDefenderAdapter,
+    hybrid_analysis::HybridAnalysisAdapter,
     cloudmersive::CloudmersiveAdapter,
     clamav::ClamAVAdapter,
 };
@@ -32,6 +33,7 @@ fn main() {
     let providers: Vec<Arc<dyn ScanProvider>> = vec![
         Arc::new(VirusTotalAdapter::new(keys.vt.clone())),
         Arc::new(MetaDefenderAdapter::new(keys.md.clone())),
+        Arc::new(HybridAnalysisAdapter::new(keys.ha.clone())),
         Arc::new(CloudmersiveAdapter::new(keys.cm.clone())),
         Arc::new(ClamAVAdapter::new()),
     ];

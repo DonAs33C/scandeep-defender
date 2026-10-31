@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useLangCtx } from "../LangContext";
 import { T } from "../i18n";
-
-interface ScanRecord { id:string;filename:string;filepath:string;filesize:number;filehash:string;timestamp:string;overall_verdict:string; }
+import type { ScanRecord } from "../types";
 
 export default function History() {
   const { lang } = useLangCtx();

@@ -2,22 +2,21 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useLangCtx } from "../LangContext";
 import { T } from "../i18n";
-
-interface QRecord { id:string; filename:string; original_path:string; quarantine_path:string; hash:string; quarantined_at:string; scan_id:string; }
+import type { QuarantineRecord } from "../types";
 
 export default function Quarantine() {
   const { lang } = useLangCtx();
   const q = T[lang].quarantine;
-  const [records, setRecords] = useState<QRecord[]>([]);
+  const [records, setRecords] = useState<QuarantineRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const load = async () => { setLoading(true); try { setRecords(await invoke<QRecord[]>("list_quarantine")); } catch(e){console.error(e);} finally{setLoading(false);} };
+  const load = async () => { setLoading(true); try { setRecords(await invoke<QuarantineRecord[]>("list_quarantine")); } catch(e){console.error(e);} finally{setLoading(false);} };
   useEffect(()=>{load();},[]);
 
-  const restore = async (r:QRecord) => {
+  const restore = async (r:QuarantineRecord) => {
     await invoke("restore_file",{record:r}); setRecords(records.filter(x=>x.id!==r.id));
   };
-  const del = async (r:QRecord) => {
+  const del = async (r:QuarantineRecord) => {
     if(!confirm(q.confirmDelete)) return;
     await invoke("delete_permanently",{record:r}); setRecords(records.filter(x=>x.id!==r.id));
   };

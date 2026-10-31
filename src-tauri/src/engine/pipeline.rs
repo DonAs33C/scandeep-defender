@@ -44,17 +44,17 @@ impl ScanPipeline {
 
     pub async fn execute(&self, job: ScanJob, app: &AppHandle) -> Result<ScanReport> {
         // 1. hash
-        emit(app, &job.id, "hashing", "Calcolo SHA-256...");
+        emit(app, &job.id, "hashing", "Calcolo SHA-256...")?;
         let hash = compute_hash(&job.file_path).await?;
 
         // 2. cache
         if let Ok(Some(report)) = self.db.get_cached_report(&hash).await {
-            emit(app, &job.id, "completed", "Caricato dalla cache");
+            emit(app, &job.id, "completed", "Caricato dalla cache")?;
             return Ok(ScanReport { from_cache: true, ..report });
         }
 
         // 3. scansione parallela
-        emit(app, &job.id, "scanning", "Avvio scansione parallela...");
+        emit(app, &job.id, "scanning", "Avvio scansione parallela...")?;
         let mut handles = vec![];
 
         for provider in &self.providers {
@@ -82,7 +82,7 @@ impl ScanPipeline {
             let pid  = job.id.clone();
 
             handles.push(tokio::spawn(async move {
-                emit(&app2, &pid, "scanning", &format!("{}...", p.name()));
+                emit(&app2, &pid, "scanning", &format!("{}...", p.name()))?;
                 let result = with_retry(MAX_RETRIES, || p.scan_hash(&h)).await;
                 // upload solo se hash sconosciuto E upload consentito
                 let result = if result.verdict == Verdict::Unavailable
@@ -90,13 +90,21 @@ impl ScanPipeline {
                                 && allow_upload {
                     with_retry(MAX_RETRIES, || p.scan_file(&fp, &h, &fn_)).await
                 } else { result };
-                emit(&app2, &pid, "done", &format!("{}: {:?}", p.name(), result.verdict));
+                emit(&app2, &pid, "done", &format!("{}: {:?}", p.name(), result.verdict))?;
                 result
             }));
         }
 
-        let results: Vec<ProviderResult> = futures::future::join_all(handles)
-            .await.into_iter().filter_map(|r| r.ok()).collect();
+        let join_results = futures::future::join_all(handles).await;
+        let mut results = Vec::new();
+        for r in join_results {
+            match r {
+                Ok(provider_result) => results.push(provider_result),
+                Err(e) => {
+                    tracing::error!("Scan task failed: {}", e);
+                }
+            }
+        }
 
         // 4. aggregazione
         let overall = ScanReport::compute_verdict(&results);
@@ -110,8 +118,8 @@ impl ScanPipeline {
             results, overall_verdict: overall, risk_score: risk, from_cache: false,
         };
 
-        self.db.save_report(&report).await.ok();
-        emit(app, &report.job_id, "completed", "Scansione completata");
+        self.db.save_report(&report).await?;
+        emit(app, &report.job_id, "completed", "Scansione completata")?;
         Ok(report)
     }
 }
@@ -132,8 +140,8 @@ where F: FnMut() -> Fut, Fut: std::future::Future<Output=ProviderResult> {
     f().await
 }
 
-fn emit(app: &AppHandle, job_id: &str, status: &str, msg: &str) {
+fn emit(app: &AppHandle, job_id: &str, status: &str, msg: &str) -> Result<()> {
     app.emit("scan-progress", serde_json::json!({
         "job_id": job_id, "status": status, "message": msg
-    })).ok();
+    })).map_err(|e| anyhow::anyhow!("Failed to emit event: {}", e))
 }

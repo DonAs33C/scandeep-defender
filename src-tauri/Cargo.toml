@@ -32,3 +32,9 @@ glob                = "0.3"
 
 [lints.rust]
 dead_code = "warn"
+
+[dev-dependencies]
+mockall = "0.12"
+tokio-test = "0.4"
+tempfile = "3"
+serial_test = "2"

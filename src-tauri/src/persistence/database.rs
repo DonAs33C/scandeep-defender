@@ -142,3 +142,196 @@ impl Database {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::engine::job::ScanReport;
+    use crate::adapters::scanner_trait::{ProviderResult, Verdict};
+    use crate::security::quarantine::QuarantineRecord;
+    use tempfile::tempdir;
+    use std::path::PathBuf;
+
+    fn make_test_db() -> Database {
+        let temp = tempdir().unwrap();
+        let db_path = temp.path().join("test_history.db");
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS scans (
+                id TEXT PRIMARY KEY, filename TEXT, filepath TEXT,
+                filesize INTEGER, filehash TEXT, timestamp TEXT,
+                overall_verdict TEXT, risk_score INTEGER DEFAULT 0,
+                results_json TEXT
+            );
+            CREATE TABLE IF NOT EXISTS quarantine (
+                id TEXT PRIMARY KEY, original_path TEXT, quarantine_path TEXT,
+                filename TEXT, hash TEXT, quarantined_at TEXT, scan_id TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_filehash ON scans(filehash);"
+        ).unwrap();
+        Database { conn: std::sync::Mutex::new(conn) }
+    }
+
+    fn make_report(verdict: Verdict, hash: &str) -> ScanReport {
+        ScanReport {
+            job_id: "test-job".into(),
+            filename: "test.exe".into(),
+            filepath: "/path/test.exe".into(),
+            filesize: 1024,
+            hash: hash.into(),
+            timestamp: "2024-01-01T00:00:00Z".into(),
+            results: vec![ProviderResult {
+                provider_id: "test".into(),
+                verdict,
+                detections: 1,
+                total_engines: 10,
+                details: "test".into(),
+                poll_id: None,
+            }],
+            overall_verdict: verdict,
+            risk_score: 50,
+            from_cache: false,
+        }
+    }
+
+    #[test]
+    fn save_and_get_cached_report() {
+        let db = make_test_db();
+        let report = make_report(Verdict::Malicious, "abc123");
+
+        db.save_report(&report).await.unwrap();
+
+        let cached = db.get_cached_report("abc123").await.unwrap();
+        assert!(cached.is_some());
+        let cached = cached.unwrap();
+        assert_eq!(cached.hash, "abc123");
+        assert_eq!(cached.overall_verdict, Verdict::Malicious);
+        assert_eq!(cached.risk_score, 50);
+        assert!(cached.from_cache);
+    }
+
+    #[test]
+    fn get_cached_report_returns_none_for_unknown_hash() {
+        let db = make_test_db();
+
+        let cached = db.get_cached_report("unknown").await.unwrap();
+        assert!(cached.is_none());
+    }
+
+    #[test]
+    fn save_report_updates_existing() {
+        let db = make_test_db();
+        let mut report = make_report(Verdict::Clean, "samehash");
+        db.save_report(&report).await.unwrap();
+
+        report.overall_verdict = Verdict::Malicious;
+        report.risk_score = 90;
+        db.save_report(&report).await.unwrap();
+
+        let cached = db.get_cached_report("samehash").await.unwrap().unwrap();
+        assert_eq!(cached.overall_verdict, Verdict::Malicious);
+        assert_eq!(cached.risk_score, 90);
+    }
+
+    #[test]
+    fn get_all_scans_returns_sorted_by_timestamp() {
+        let db = make_test_db();
+
+        let mut r1 = make_report(Verdict::Clean, "hash1");
+        r1.timestamp = "2024-01-01T00:00:00Z".into();
+        db.save_report(&r1).await.unwrap();
+
+        let mut r2 = make_report(Verdict::Malicious, "hash2");
+        r2.timestamp = "2024-01-02T00:00:00Z".into();
+        db.save_report(&r2).await.unwrap();
+
+        let scans = db.get_all_scans().unwrap();
+        assert_eq!(scans.len(), 2);
+        // Most recent first
+        assert_eq!(scans[0].filehash, "hash2");
+        assert_eq!(scans[1].filehash, "hash1");
+    }
+
+    #[test]
+    fn clear_history_removes_all_scans() {
+        let db = make_test_db();
+        db.save_report(&make_report(Verdict::Clean, "hash1")).await.unwrap();
+        db.save_report(&make_report(Verdict::Malicious, "hash2")).await.unwrap();
+
+        db.clear_history().unwrap();
+
+        let scans = db.get_all_scans().unwrap();
+        assert_eq!(scans.len(), 0);
+    }
+
+    #[test]
+    fn find_by_hash_returns_verdict() {
+        let db = make_test_db();
+        let mut report = make_report(Verdict::Suspicious, "findme");
+        db.save_report(&report).await.unwrap();
+
+        let result = db.find_by_hash("findme").unwrap();
+        assert_eq!(result, Some("suspicious".into()));
+    }
+
+    #[test]
+    fn find_by_hash_returns_none_for_unknown() {
+        let db = make_test_db();
+        let result = db.find_by_hash("unknown").unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn save_and_get_quarantine_list() {
+        let db = make_test_db();
+
+        let q1 = QuarantineRecord {
+            id: "q1".into(),
+            original_path: "/orig/file1.exe".into(),
+            quarantine_path: "/quar/q1.quar".into(),
+            filename: "file1.exe".into(),
+            hash: "hash1".into(),
+            quarantined_at: "2024-01-01T00:00:00Z".into(),
+            scan_id: "scan1".into(),
+        };
+        let q2 = QuarantineRecord {
+            id: "q2".into(),
+            original_path: "/orig/file2.exe".into(),
+            quarantine_path: "/quar/q2.quar".into(),
+            filename: "file2.exe".into(),
+            hash: "hash2".into(),
+            quarantined_at: "2024-01-02T00:00:00Z".into(),
+            scan_id: "scan2".into(),
+        };
+
+        db.save_quarantine(&q1).unwrap();
+        db.save_quarantine(&q2).unwrap();
+
+        let list = db.get_quarantine_list().unwrap();
+        assert_eq!(list.len(), 2);
+        // Most recent first
+        assert_eq!(list[0].id, "q2");
+        assert_eq!(list[1].id, "q1");
+    }
+
+    #[test]
+    fn remove_quarantine_removes_record() {
+        let db = make_test_db();
+
+        let q = QuarantineRecord {
+            id: "q1".into(),
+            original_path: "/orig/file.exe".into(),
+            quarantine_path: "/quar/q1.quar".into(),
+            filename: "file.exe".into(),
+            hash: "hash1".into(),
+            quarantined_at: "2024-01-01T00:00:00Z".into(),
+            scan_id: "scan1".into(),
+        };
+        db.save_quarantine(&q).unwrap();
+
+        db.remove_quarantine("q1").unwrap();
+
+        let list = db.get_quarantine_list().unwrap();
+        assert_eq!(list.len(), 0);
+    }
+}
