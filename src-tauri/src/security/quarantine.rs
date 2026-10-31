@@ -220,7 +220,7 @@ mod tests {
     #[tokio::test]
     async fn restore_fails_on_hash_mismatch() {
         let temp = tempdir().unwrap();
-        let file_path = create_test_file(temp.path(), "test.exe", b"malware content").await);
+        let file_path = create_test_file(temp.path(), "test.exe", b"malware content").await;
 
         let manager = QuarantineManager::new().unwrap();
         let expected_hash = manager.compute_file_hash(&file_path).await.unwrap();
