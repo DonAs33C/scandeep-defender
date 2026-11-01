@@ -322,8 +322,9 @@ Newest completed operations appear first.
 
 Navigation: [[index|Wiki index]] · [[overview|Vault overview]] · [[hot|Recent context]]
 
-## {OPERATION_ID} — {NOW}
+## [{NOW[:10]}] ingest
 
+**Operation ID:** {OPERATION_ID}
 **Operation Type:** ingest
 **Date:** {NOW}
 **Sources Processed:** 5
@@ -429,20 +430,42 @@ def create_source_ledger_page() -> dict:
     except FileNotFoundError:
         expected_hash = None
 
-    # Build sources with src- prefix and origin object
+    # Canonical source IDs from stable_source_id computation (from error messages)
+    canonical_source_ids = {
+        "3254ee61cdc4232fe36bf72d5d6934a218eb2a20629615de10951e40ba2b77ff": "src-f52e465bc63278b055fe",
+        "8788fc6bc8431a280f9a49f3878eba15f3e37896477dbaa17e4955e77f7a4e51": "src-f6c24b788ae9e0639f09",
+        "318ce4d1f9cb8ca642b077ac4c90fc1178856c27e16ae45e3f4fa599807e8bab": "src-84deab7c025da0551f82",
+        "2d9f06182967ffe0e4f0bf8949223785426e439095b1f31d699c733ec49dd80f": "src-153fc1ff4b27f81d2645",
+        "135e1b38223ccb7178200e6812c3b8fc2124b863f5a1759d2debfdcfb9bea4f7": "src-ddefb90375b7479982bc",
+    }
+
+    # Build sources with canonical src- prefix and proper schema
     sources = {}
     for source_id, record in source_ledger_records.items():
-        src_id = f"src-{source_id}"
+        src_id = canonical_source_ids[source_id]
+        # Extract the source file path from the locator
+        locator = record["locator"]
+        # The locator is like "vault://.raw/captured/{sha256}.md"
+        # We need a vault-relative path
+        if locator.startswith("vault://"):
+            locator = locator[8:]  # Remove "vault://"
+
         sources[src_id] = {
             "origin": {
-                "locator": record["locator"],
-                "captured_at": record.get("freshness", {}).get("refresh_due", NOW),
+                "kind": "file",
+                "locator": locator,
             },
-            "authority": record["authority"],
-            "review_state": record["review_state"],
-            "freshness": record["freshness"],
+            "content_kind": "document",
+            "authority": "primary",
+            "review_status": "active",
+            "title": record["independence_key"].replace("scandeep-defender-inbox-", ""),
+            "content_sha256": source_id,
+            "ingested_at": NOW[:10],  # YYYY-MM-DD
+            "retrieved_at": None,
+            "refresh_due": record["freshness"]["refresh_due"][:10],
+            "pages": record["linked_pages"],
             "independence_key": record["independence_key"],
-            "linked_pages": record["linked_pages"],
+            "supersedes": None,
         }
 
     content = {
@@ -470,18 +493,43 @@ def create_claim_ledger_page() -> dict:
     except FileNotFoundError:
         expected_hash = None
 
-    # Build claims with clm- prefix and required fields
+    # Canonical source IDs from stable_source_id computation (from error messages)
+    canonical_source_ids = {
+        "3254ee61cdc4232fe36bf72d5d6934a218eb2a20629615de10951e40ba2b77ff": "src-f52e465bc63278b055fe",
+        "8788fc6bc8431a280f9a49f3878eba15f3e37896477dbaa17e4955e77f7a4e51": "src-f6c24b788ae9e0639f09",
+        "318ce4d1f9cb8ca642b077ac4c90fc1178856c27e16ae45e3f4fa599807e8bab": "src-84deab7c025da0551f82",
+        "2d9f06182967ffe0e4f0bf8949223785426e439095b1f31d699c733ec49dd80f": "src-153fc1ff4b27f81d2645",
+        "135e1b38223ccb7178200e6812c3b8fc2124b863f5a1759d2debfdcfb9bea4f7": "src-ddefb90375b7479982bc",
+    }
+
+    # Build claims with clm- prefix and proper schema
     claims = {}
     for i, (claim_id, record) in enumerate(claim_ledger_records.items(), 1):
         clm_id = f"clm-{i:03d}"
+
+        # Build evidence array with proper format using canonical source IDs
+        evidence = []
+        for src_sha in record["support"]:
+            src_id = canonical_source_ids.get(src_sha, f"src-{src_sha[:20]}")
+            evidence.append({
+                "source_id": src_id,
+                "relation": "supports",
+                "locator": None,
+            })
+
         claims[clm_id] = {
             "text": record["statement"],
-            "evidence": record["support"],
-            "location": {"note": record["note_locator"]},
-            "reviewed_at": NOW,
-            "risk": record["risk"],
+            "evidence": evidence,
+            "location": {
+                "path": record["note_locator"],
+                "anchor": None,
+            },
+            "reviewed_at": NOW[:10],  # YYYY-MM-DD
+            "risk": "normal" if record["risk"] == "low" else "high",
             "confidence": record["confidence"],
-            "review_state": record["review_state"],
+            "assessment": record["assessment"],
+            "notes": None,
+            "supersedes": None,
         }
 
     content = {
