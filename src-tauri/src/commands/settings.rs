@@ -1,15 +1,20 @@
-use std::sync::Arc;
-use std::collections::HashMap;
-use crate::app_state::{AppState, AppConfig};
+use crate::app_state::{AppConfig, AppState};
 use crate::security::crypto;
 use crate::security::rules::RulesEngine;
+use std::collections::HashMap;
+use std::sync::Arc;
 
-const PROVIDERS: &[&str] = &["virustotal", "metadefender", "hybridanalysis", "cloudmersive"];
+const PROVIDERS: &[&str] = &[
+    "virustotal",
+    "metadefender",
+    "hybridanalysis",
+    "cloudmersive",
+];
 
 /// Salva le API key nel keyring di sistema
 #[tauri::command]
 pub async fn save_api_keys(
-    keys:  HashMap<String, String>,
+    keys: HashMap<String, String>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<(), String> {
     for (id, key) in &keys {
@@ -40,7 +45,10 @@ pub async fn load_api_keys(
 /// Aggiorna le chiavi nel watcher live (senza riavvio)
 #[tauri::command]
 pub async fn set_watcher_keys(
-    vt: String, md: String, ha: String, cm: String,
+    vt: String,
+    md: String,
+    ha: String,
+    cm: String,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<(), String> {
     let set = |mtx: &std::sync::Arc<std::sync::Mutex<String>>, val: String| {
@@ -57,7 +65,7 @@ pub async fn set_watcher_keys(
 #[tauri::command]
 pub async fn set_auto_scan(
     enabled: bool,
-    state:   tauri::State<'_, Arc<AppState>>,
+    state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<(), String> {
     *state.auto_scan.lock().unwrap() = enabled;
     Ok(())
@@ -66,13 +74,13 @@ pub async fn set_auto_scan(
 /// Aggiorna provider abilitati e opzione cloud upload in AppState
 #[tauri::command]
 pub async fn set_config(
-    allow_cloud_upload:  bool,
-    enabled_providers:   Vec<String>,
+    allow_cloud_upload: bool,
+    enabled_providers: Vec<String>,
     state: tauri::State<'_, Arc<AppState>>,
 ) -> Result<(), String> {
     let mut cfg = state.config.write().unwrap();
     cfg.allow_cloud_upload = allow_cloud_upload;
-    cfg.enabled_providers  = enabled_providers;
+    cfg.enabled_providers = enabled_providers;
     Ok(())
 }
 

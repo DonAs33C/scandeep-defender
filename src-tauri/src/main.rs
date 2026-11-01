@@ -2,31 +2,29 @@
 
 use std::sync::Arc;
 
+mod adapters;
 mod app_state;
 mod commands;
 mod engine;
-mod adapters;
 mod persistence;
+mod rate_limiter;
 mod security;
 mod watcher;
-mod rate_limiter;
 
-use app_state::{AppConfig, AppState, ApiKeys};
-use engine::{pipeline::ScanPipeline, queue::JobQueue};
-use persistence::database::Database;
 use adapters::scanner_trait::ScanProvider;
 use adapters::{
+    clamav::ClamAVAdapter, cloudmersive::CloudmersiveAdapter,
+    hybrid_analysis::HybridAnalysisAdapter, metadefender::MetaDefenderAdapter,
     virustotal::VirusTotalAdapter,
-    metadefender::MetaDefenderAdapter,
-    hybrid_analysis::HybridAnalysisAdapter,
-    cloudmersive::CloudmersiveAdapter,
-    clamav::ClamAVAdapter,
 };
+use app_state::{ApiKeys, AppConfig, AppState};
+use engine::{pipeline::ScanPipeline, queue::JobQueue};
+use persistence::database::Database;
 
 fn main() {
     tracing_subscriber::fmt::init();
 
-    let db   = Arc::new(Database::new().expect("db init failed"));
+    let db = Arc::new(Database::new().expect("db init failed"));
     let keys = Arc::new(ApiKeys::new());
     keys.load_from_keyring();
 
@@ -39,15 +37,15 @@ fn main() {
     ];
 
     let pipeline = Arc::new(ScanPipeline::new(providers, db.clone()));
-    let queue    = Arc::new(JobQueue::new());
+    let queue = Arc::new(JobQueue::new());
 
     let state = Arc::new(AppState {
         db,
         pipeline,
-        queue:     queue.clone(),
+        queue: queue.clone(),
         keys,
         auto_scan: std::sync::Mutex::new(false),
-        config:    std::sync::RwLock::new(AppConfig::default()),
+        config: std::sync::RwLock::new(AppConfig::default()),
     });
 
     tauri::Builder::default()

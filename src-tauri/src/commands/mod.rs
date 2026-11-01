@@ -1,4 +1,4 @@
-pub mod scan;
 pub mod history;
-pub mod settings;
 pub mod quarantine;
+pub mod scan;
+pub mod settings;

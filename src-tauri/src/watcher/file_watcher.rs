@@ -14,38 +14,61 @@ pub fn start_watcher(app: AppHandle, state: Arc<AppState>, _queue: Arc<JobQueue>
     std::thread::spawn(move || {
         let (tx, rx) = mpsc::channel::<Result<Event, notify::Error>>();
         let mut watcher: RecommendedWatcher = match notify::recommended_watcher(tx) {
-            Ok(w)  => w,
-            Err(e) => { tracing::error!("Failed to create watcher: {}", e); return; }
+            Ok(w) => w,
+            Err(e) => {
+                tracing::error!("Failed to create watcher: {}", e);
+                return;
+            }
         };
         if let Err(e) = watcher.watch(&downloads, RecursiveMode::NonRecursive) {
-            tracing::error!("Failed to watch downloads: {}", e); return;
+            tracing::error!("Failed to watch downloads: {}", e);
+            return;
         }
 
         tracing::info!("Watching {:?} for new files", downloads);
 
-        let rt = match tokio::runtime::Builder::new_multi_thread().enable_all().build() {
-            Ok(rt)  => rt,
-            Err(e)  => { tracing::error!("Failed to create tokio runtime: {}", e); return; }
+        let rt = match tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+        {
+            Ok(rt) => rt,
+            Err(e) => {
+                tracing::error!("Failed to create tokio runtime: {}", e);
+                return;
+            }
         };
 
         for res in rx {
-            if !*state.auto_scan.lock().unwrap() { continue; }
-            let Ok(event) = res else { continue; };
-            if !matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_)) { continue; }
+            if !*state.auto_scan.lock().unwrap() {
+                continue;
+            }
+            let Ok(event) = res else {
+                continue;
+            };
+            if !matches!(event.kind, EventKind::Create(_) | EventKind::Modify(_)) {
+                continue;
+            }
 
             for path in event.paths {
-                if StabilityChecker::should_ignore(&path) { continue; }
+                if StabilityChecker::should_ignore(&path) {
+                    continue;
+                }
 
-                let app2   = app.clone();
+                let app2 = app.clone();
                 let state2 = Arc::clone(&state);
-                let path2  = path.clone();
+                let path2 = path.clone();
 
                 rt.spawn(async move {
                     let size = match StabilityChecker::wait_until_stable(&path2).await {
-                        Ok(s)  => s,
-                        Err(e) => { tracing::warn!("Stability check failed for {:?}: {}", path2, e); return; }
+                        Ok(s) => s,
+                        Err(e) => {
+                            tracing::warn!("Stability check failed for {:?}: {}", path2, e);
+                            return;
+                        }
                     };
-                    if size == 0 { return; }
+                    if size == 0 {
+                        return;
+                    }
 
                     // FIX: tuple destructuring con parentesi corrette
                     let (providers, allow_cloud_upload, should_scan) = {
@@ -63,11 +86,14 @@ pub fn start_watcher(app: AppHandle, state: Arc<AppState>, _queue: Arc<JobQueue>
                     }
 
                     let job = ScanJob::new(path2.clone(), providers, allow_cloud_upload);
-                    let _ = app2.emit("job-queued", serde_json::json!({
-                        "job_id":   job.id,
-                        "filename": job.filename,
-                        "source":   "downloads"
-                    }));
+                    let _ = app2.emit(
+                        "job-queued",
+                        serde_json::json!({
+                            "job_id":   job.id,
+                            "filename": job.filename,
+                            "source":   "downloads"
+                        }),
+                    );
 
                     match state2.pipeline.execute(job, &app2).await {
                         Ok(report) => {
@@ -75,10 +101,13 @@ pub fn start_watcher(app: AppHandle, state: Arc<AppState>, _queue: Arc<JobQueue>
                             tracing::info!("Background scan completed for {}", report.filename);
                         }
                         Err(e) => {
-                            let _ = app2.emit("scan-error", serde_json::json!({
-                                "message": e.to_string(),
-                                "source":  "downloads"
-                            }));
+                            let _ = app2.emit(
+                                "scan-error",
+                                serde_json::json!({
+                                    "message": e.to_string(),
+                                    "source":  "downloads"
+                                }),
+                            );
                             tracing::error!("Background scan failed: {}", e);
                         }
                     }

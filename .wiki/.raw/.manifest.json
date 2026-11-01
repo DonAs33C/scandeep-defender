@@ -1,0 +1,37 @@
+{
+  "address_map": {},
+  "description": "Ingest delta tracker. Source payloads are create-only.",
+  "sources": {
+    "3254ee61cdc4232fe36bf72d5d6934a218eb2a20629615de10951e40ba2b77ff": {
+      "captured_at": "2026-11-01T20:40:00Z",
+      "sha256": "3254ee61cdc4232fe36bf72d5d6934a218eb2a20629615de10951e40ba2b77ff",
+      "source_path": "inbox/01-project-architecture.md",
+      "stored_path": ".raw/captured/3254ee61cdc4232fe36bf72d5d6934a218eb2a20629615de10951e40ba2b77ff.md"
+    },
+    "8788fc6bc8431a280f9a49f3878eba15f3e37896477dbaa17e4955e77f7a4e51": {
+      "captured_at": "2026-11-01T20:40:00Z",
+      "sha256": "8788fc6bc8431a280f9a49f3878eba15f3e37896477dbaa17e4955e77f7a4e51",
+      "source_path": "inbox/02-automation-setup.md",
+      "stored_path": ".raw/captured/8788fc6bc8431a280f9a49f3878eba15f3e37896477dbaa17e4955e77f7a4e51.md"
+    },
+    "318ce4d1f9cb8ca642b077ac4c90fc1178856c27e16ae45e3f4fa599807e8bab": {
+      "captured_at": "2026-11-01T20:40:00Z",
+      "sha256": "318ce4d1f9cb8ca642b077ac4c90fc1178856c27e16ae45e3f4fa599807e8bab",
+      "source_path": "inbox/03-security-considerations.md",
+      "stored_path": ".raw/captured/318ce4d1f9cb8ca642b077ac4c90fc1178856c27e16ae45e3f4fa599807e8bab.md"
+    },
+    "2d9f06182967ffe0e4f0bf8949223785426e439095b1f31d699c733ec49dd80f": {
+      "captured_at": "2026-11-01T20:40:00Z",
+      "sha256": "2d9f06182967ffe0e4f0bf8949223785426e439095b1f31d699c733ec49dd80f",
+      "source_path": "inbox/04-tauri-command-patterns.md",
+      "stored_path": ".raw/captured/2d9f06182967ffe0e4f0bf8949223785426e439095b1f31d699c733ec49dd80f.md"
+    },
+    "135e1b38223ccb7178200e6812c3b8fc2124b863f5a1759d2debfdcfb9bea4f7": {
+      "captured_at": "2026-11-01T20:40:00Z",
+      "sha256": "135e1b38223ccb7178200e6812c3b8fc2124b863f5a1759d2debfdcfb9bea4f7",
+      "source_path": "inbox/05-release-process.md",
+      "stored_path": ".raw/captured/135e1b38223ccb7178200e6812c3b8fc2124b863f5a1759d2debfdcfb9bea4f7.md"
+    }
+  },
+  "version": 1
+}

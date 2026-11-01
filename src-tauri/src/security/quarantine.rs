@@ -1,20 +1,20 @@
-use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use sha2::{Digest, Sha256};
+use std::path::{Path, PathBuf};
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
+use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct QuarantineRecord {
-    pub id:               String,
-    pub original_path:    String,
-    pub quarantine_path:  String,
-    pub filename:         String,
-    pub hash:             String,
-    pub quarantined_at:   String,
-    pub scan_id:          String,
+    pub id: String,
+    pub original_path: String,
+    pub quarantine_path: String,
+    pub filename: String,
+    pub hash: String,
+    pub quarantined_at: String,
+    pub scan_id: String,
 }
 
 pub struct QuarantineManager {
@@ -28,28 +28,45 @@ impl QuarantineManager {
             .join("scandeep-defender")
             .join("quarantine");
         std::fs::create_dir_all(&dir).context("Cannot create quarantine dir")?;
-        Ok(Self { quarantine_dir: dir })
+        Ok(Self {
+            quarantine_dir: dir,
+        })
     }
 
     /// Computes SHA256 hash of a file in streaming fashion (memory efficient)
     async fn compute_file_hash(path: &Path) -> Result<String> {
-        let mut file = File::open(path).await.context("Cannot open file for hashing")?;
+        let mut file = File::open(path)
+            .await
+            .context("Cannot open file for hashing")?;
         let mut hasher = Sha256::new();
         let mut buffer = vec![0u8; 8192];
         loop {
-            let n = file.read(&mut buffer).await.context("Failed to read file for hashing")?;
-            if n == 0 { break; }
+            let n = file
+                .read(&mut buffer)
+                .await
+                .context("Failed to read file for hashing")?;
+            if n == 0 {
+                break;
+            }
             hasher.update(&buffer[..n]);
         }
         Ok(format!("{:x}", hasher.finalize()))
     }
 
     /// Atomically moves file to quarantine with cross-device fallback and integrity verification
-    pub async fn quarantine(&self, file_path: &Path, expected_hash: &str, scan_id: &str) -> Result<QuarantineRecord> {
-        let id       = Uuid::new_v4().to_string();
-        let filename = file_path.file_name()
-            .unwrap_or_default().to_string_lossy().to_string();
-        let qpath    = self.quarantine_dir.join(format!("{}.quar", id));
+    pub async fn quarantine(
+        &self,
+        file_path: &Path,
+        expected_hash: &str,
+        scan_id: &str,
+    ) -> Result<QuarantineRecord> {
+        let id = Uuid::new_v4().to_string();
+        let filename = file_path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        let qpath = self.quarantine_dir.join(format!("{}.quar", id));
 
         // Try rename first (fast, atomic on same filesystem)
         let move_result = std::fs::rename(file_path, &qpath);
@@ -57,7 +74,8 @@ impl QuarantineManager {
         // If rename fails (e.g., cross-device), fall back to copy + verify + remove
         if move_result.is_err() {
             // Copy file to quarantine
-            tokio::fs::copy(file_path, &qpath).await
+            tokio::fs::copy(file_path, &qpath)
+                .await
                 .context("Failed to copy file to quarantine (cross-device fallback)")?;
 
             // Verify integrity after copy
@@ -69,7 +87,8 @@ impl QuarantineManager {
             }
 
             // Remove original after successful copy and verification
-            tokio::fs::remove_file(file_path).await
+            tokio::fs::remove_file(file_path)
+                .await
                 .context("Failed to remove original file after quarantine")?;
         }
 
@@ -87,18 +106,18 @@ impl QuarantineManager {
 
         Ok(QuarantineRecord {
             id,
-            original_path:   file_path.to_string_lossy().to_string(),
+            original_path: file_path.to_string_lossy().to_string(),
             quarantine_path: qpath.to_string_lossy().to_string(),
             filename,
-            hash:            expected_hash.to_string(),
-            quarantined_at:  chrono::Utc::now().to_rfc3339(),
-            scan_id:         scan_id.to_string(),
+            hash: expected_hash.to_string(),
+            quarantined_at: chrono::Utc::now().to_rfc3339(),
+            scan_id: scan_id.to_string(),
         })
     }
 
     pub async fn restore(&self, record: &QuarantineRecord) -> Result<()> {
         let qpath = PathBuf::from(&record.quarantine_path);
-        let orig  = PathBuf::from(&record.original_path);
+        let orig = PathBuf::from(&record.original_path);
 
         // Verify integrity before restore
         let hash = Self::compute_file_hash(&qpath).await?;
@@ -115,7 +134,8 @@ impl QuarantineManager {
 
         // Cross-device fallback: copy + verify + remove
         if restore_result.is_err() {
-            tokio::fs::copy(&qpath, &orig).await
+            tokio::fs::copy(&qpath, &orig)
+                .await
                 .context("Failed to copy file from quarantine (cross-device fallback)")?;
 
             // Verify integrity after copy
@@ -125,7 +145,8 @@ impl QuarantineManager {
                 anyhow::bail!("Integrity check failed after restore copy: hash mismatch");
             }
 
-            tokio::fs::remove_file(&qpath).await
+            tokio::fs::remove_file(&qpath)
+                .await
                 .context("Failed to remove quarantined file after restore")?;
         }
 
@@ -143,8 +164,8 @@ impl QuarantineManager {
 mod tests {
     use super::*;
     use std::path::Path;
-    use tokio::fs;
     use tempfile::tempdir;
+    use tokio::fs;
 
     async fn create_test_file(dir: &Path, name: &str, content: &[u8]) -> std::path::PathBuf {
         let path = dir.join(name);
@@ -160,7 +181,10 @@ mod tests {
         let manager = QuarantineManager::new().unwrap();
         let expected_hash = manager.compute_file_hash(&file_path).await.unwrap();
 
-        let record = manager.quarantine(&file_path, &expected_hash, "scan-123").await.unwrap();
+        let record = manager
+            .quarantine(&file_path, &expected_hash, "scan-123")
+            .await
+            .unwrap();
 
         assert_eq!(record.hash, expected_hash);
         assert_eq!(record.filename, "test.exe");
@@ -192,7 +216,10 @@ mod tests {
         let manager = QuarantineManager::new().unwrap();
         let expected_hash = manager.compute_file_hash(&file_path).await.unwrap();
 
-        let _record = manager.quarantine(&file_path, &expected_hash, "scan-123").await.unwrap();
+        let _record = manager
+            .quarantine(&file_path, &expected_hash, "scan-123")
+            .await
+            .unwrap();
 
         // Original file should be gone
         assert!(!file_path.exists());
@@ -206,7 +233,10 @@ mod tests {
         let manager = QuarantineManager::new().unwrap();
         let expected_hash = manager.compute_file_hash(&file_path).await.unwrap();
 
-        let record = manager.quarantine(&file_path, &expected_hash, "scan-123").await.unwrap();
+        let record = manager
+            .quarantine(&file_path, &expected_hash, "scan-123")
+            .await
+            .unwrap();
 
         // Restore
         manager.restore(&record).await.unwrap();
@@ -225,10 +255,15 @@ mod tests {
         let manager = QuarantineManager::new().unwrap();
         let expected_hash = manager.compute_file_hash(&file_path).await.unwrap();
 
-        let record = manager.quarantine(&file_path, &expected_hash, "scan-123").await.unwrap();
+        let record = manager
+            .quarantine(&file_path, &expected_hash, "scan-123")
+            .await
+            .unwrap();
 
         // Corrupt the quarantined file
-        fs::write(&record.quarantine_path, b"corrupted").await.unwrap();
+        fs::write(&record.quarantine_path, b"corrupted")
+            .await
+            .unwrap();
 
         let result = manager.restore(&record).await;
         assert!(result.is_err());
@@ -242,7 +277,10 @@ mod tests {
         let manager = QuarantineManager::new().unwrap();
         let expected_hash = manager.compute_file_hash(&file_path).await.unwrap();
 
-        let record = manager.quarantine(&file_path, &expected_hash, "scan-123").await.unwrap();
+        let record = manager
+            .quarantine(&file_path, &expected_hash, "scan-123")
+            .await
+            .unwrap();
 
         manager.delete_permanently(&record).await.unwrap();
 
@@ -261,7 +299,10 @@ mod tests {
             let manager = QuarantineManager::new().unwrap();
             let expected_hash = manager.compute_file_hash(&file_path).await.unwrap();
 
-            let record = manager.quarantine(&file_path, &expected_hash, "scan-123").await.unwrap();
+            let record = manager
+                .quarantine(&file_path, &expected_hash, "scan-123")
+                .await
+                .unwrap();
 
             let metadata = fs::metadata(&record.quarantine_path).await.unwrap();
             let perms = metadata.permissions();

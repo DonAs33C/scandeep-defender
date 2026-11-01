@@ -1,14 +1,14 @@
-use std::sync::{Arc, Mutex, RwLock};
 use crate::engine::{pipeline::ScanPipeline, queue::JobQueue};
 use crate::persistence::database::Database;
 use crate::security::crypto;
 use crate::security::rules::RulesEngine;
+use std::sync::{Arc, Mutex, RwLock};
 
 #[derive(Default)]
 pub struct AppConfig {
-    pub enabled_providers:  Vec<String>,
+    pub enabled_providers: Vec<String>,
     pub allow_cloud_upload: bool,
-    pub rules:              RulesEngine,
+    pub rules: RulesEngine,
 }
 
 pub struct ApiKeys {
@@ -30,10 +30,10 @@ impl ApiKeys {
 
     pub fn load_from_keyring(&self) {
         let pairs: &[(&str, &Arc<Mutex<String>>)] = &[
-            ("virustotal",     &self.vt),
-            ("metadefender",   &self.md),
+            ("virustotal", &self.vt),
+            ("metadefender", &self.md),
             ("hybridanalysis", &self.ha),
-            ("cloudmersive",   &self.cm),
+            ("cloudmersive", &self.cm),
         ];
         for (id, mtx) in pairs {
             if let Ok(Some(k)) = crypto::get_key(id) {
@@ -45,11 +45,11 @@ impl ApiKeys {
 }
 
 pub struct AppState {
-    pub db:        Arc<Database>,
-    pub pipeline:  Arc<ScanPipeline>,
+    pub db: Arc<Database>,
+    pub pipeline: Arc<ScanPipeline>,
     #[allow(dead_code)]
-    pub queue:     Arc<JobQueue>,
-    pub keys:      Arc<ApiKeys>,
+    pub queue: Arc<JobQueue>,
+    pub keys: Arc<ApiKeys>,
     pub auto_scan: Mutex<bool>,
-    pub config:    RwLock<AppConfig>,
+    pub config: RwLock<AppConfig>,
 }

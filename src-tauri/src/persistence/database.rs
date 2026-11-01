@@ -1,19 +1,25 @@
-
-use rusqlite::{Connection, Result, params};
+use crate::adapters::scanner_trait::{ProviderResult, Verdict};
+use crate::engine::job::ScanReport;
+use crate::security::quarantine::QuarantineRecord;
+use rusqlite::{params, Connection, Result};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use crate::engine::job::ScanReport;
-use crate::adapters::scanner_trait::{ProviderResult, Verdict};
-use crate::security::quarantine::QuarantineRecord;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ScanRecord {
-    pub id: String, pub filename: String, pub filepath: String,
-    pub filesize: u64, pub filehash: String, pub timestamp: String,
-    pub overall_verdict: String, pub risk_score: u8,
+    pub id: String,
+    pub filename: String,
+    pub filepath: String,
+    pub filesize: u64,
+    pub filehash: String,
+    pub timestamp: String,
+    pub overall_verdict: String,
+    pub risk_score: u8,
 }
 
-pub struct Database { conn: Mutex<Connection> }
+pub struct Database {
+    conn: Mutex<Connection>,
+}
 
 impl Database {
     pub fn new() -> Result<Self> {
@@ -22,7 +28,8 @@ impl Database {
             .join("scandeep-defender");
         std::fs::create_dir_all(&dir).ok();
         let conn = Connection::open(dir.join("history.db"))?;
-        conn.execute_batch("
+        conn.execute_batch(
+            "
             CREATE TABLE IF NOT EXISTS scans (
                 id TEXT PRIMARY KEY, filename TEXT, filepath TEXT,
                 filesize INTEGER, filehash TEXT, timestamp TEXT,
@@ -34,17 +41,29 @@ impl Database {
                 filename TEXT, hash TEXT, quarantined_at TEXT, scan_id TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_filehash ON scans(filehash);
-        ")?;
-        Ok(Self { conn: Mutex::new(conn) })
+        ",
+        )?;
+        Ok(Self {
+            conn: Mutex::new(conn),
+        })
     }
 
     pub async fn save_report(&self, r: &ScanReport) -> Result<()> {
         let results_json = serde_json::to_string(&r.results).unwrap_or_default();
-        let verdict_str  = format!("{:?}", r.overall_verdict).to_lowercase();
+        let verdict_str = format!("{:?}", r.overall_verdict).to_lowercase();
         self.conn.lock().unwrap().execute(
             "INSERT OR REPLACE INTO scans VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
-            params![r.job_id,r.filename,r.filepath,r.filesize as i64,r.hash,
-                    r.timestamp,verdict_str,r.risk_score as i64,results_json],
+            params![
+                r.job_id,
+                r.filename,
+                r.filepath,
+                r.filesize as i64,
+                r.hash,
+                r.timestamp,
+                verdict_str,
+                r.risk_score as i64,
+                results_json
+            ],
         )?;
         Ok(())
     }
@@ -56,26 +75,46 @@ impl Database {
              FROM scans WHERE filehash=? ORDER BY timestamp DESC LIMIT 1"
         )?;
         let row = stmt.query_row([hash], |r| {
-            Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,
-                r.get::<_,i64>(3)? as u64,r.get::<_,String>(4)?,r.get::<_,String>(5)?,
-                r.get::<_,String>(6)?,r.get::<_,i64>(7)? as u8,r.get::<_,String>(8)?))
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, i64>(3)? as u64,
+                r.get::<_, String>(4)?,
+                r.get::<_, String>(5)?,
+                r.get::<_, String>(6)?,
+                r.get::<_, i64>(7)? as u8,
+                r.get::<_, String>(8)?,
+            ))
         });
         match row {
-            Ok((id,filename,filepath,filesize,filehash,timestamp,vs,risk_score,rj)) => {
+            Ok((id, filename, filepath, filesize, filehash, timestamp, vs, risk_score, rj)) => {
                 let results: Vec<ProviderResult> = serde_json::from_str(&rj).unwrap_or_default();
                 let overall_verdict = match vs.as_str() {
-                    "malicious"=>"Malicious","suspicious"=>"Suspicious",
-                    "clean"=>"Clean",_=>"Pending"
+                    "malicious" => "Malicious",
+                    "suspicious" => "Suspicious",
+                    "clean" => "Clean",
+                    _ => "Pending",
                 };
                 let overall_verdict = match overall_verdict {
-                    "Malicious"  => Verdict::Malicious,
+                    "Malicious" => Verdict::Malicious,
                     "Suspicious" => Verdict::Suspicious,
-                    "Clean"      => Verdict::Clean,
-                    _            => Verdict::Pending,
+                    "Clean" => Verdict::Clean,
+                    _ => Verdict::Pending,
                 };
-                Ok(Some(ScanReport{job_id:id,filename,filepath,filesize,hash:filehash,
-                    timestamp,results,overall_verdict,risk_score,from_cache:true}))
-            },
+                Ok(Some(ScanReport {
+                    job_id: id,
+                    filename,
+                    filepath,
+                    filesize,
+                    hash: filehash,
+                    timestamp,
+                    results,
+                    overall_verdict,
+                    risk_score,
+                    from_cache: true,
+                }))
+            }
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e),
         }
@@ -85,14 +124,21 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT id,filename,filepath,filesize,filehash,timestamp,overall_verdict,risk_score
-             FROM scans ORDER BY timestamp DESC LIMIT 500"
+             FROM scans ORDER BY timestamp DESC LIMIT 500",
         )?;
         // FIX: collect in variabile PRIMA che conn venga droppato
-        let rows = stmt.query_map([], |r| Ok(ScanRecord{
-            id:r.get(0)?,filename:r.get(1)?,filepath:r.get(2)?,
-            filesize:r.get::<_,i64>(3)? as u64,filehash:r.get(4)?,
-            timestamp:r.get(5)?,overall_verdict:r.get(6)?,risk_score:r.get::<_,i64>(7)? as u8,
-        }))?;
+        let rows = stmt.query_map([], |r| {
+            Ok(ScanRecord {
+                id: r.get(0)?,
+                filename: r.get(1)?,
+                filepath: r.get(2)?,
+                filesize: r.get::<_, i64>(3)? as u64,
+                filehash: r.get(4)?,
+                timestamp: r.get(5)?,
+                overall_verdict: r.get(6)?,
+                risk_score: r.get::<_, i64>(7)? as u8,
+            })
+        })?;
         let result: Vec<ScanRecord> = rows.collect::<Result<Vec<_>, _>>()?;
         Ok(result)
     }
@@ -105,10 +151,10 @@ impl Database {
     pub fn find_by_hash(&self, hash: &str) -> Result<Option<String>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT overall_verdict FROM scans WHERE filehash=? ORDER BY timestamp DESC LIMIT 1"
+            "SELECT overall_verdict FROM scans WHERE filehash=? ORDER BY timestamp DESC LIMIT 1",
         )?;
         match stmt.query_row([hash], |r| r.get::<_, String>(0)) {
-            Ok(v)  => Ok(Some(v)),
+            Ok(v) => Ok(Some(v)),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e),
         }
@@ -117,7 +163,15 @@ impl Database {
     pub fn save_quarantine(&self, q: &QuarantineRecord) -> Result<()> {
         self.conn.lock().unwrap().execute(
             "INSERT OR REPLACE INTO quarantine VALUES (?1,?2,?3,?4,?5,?6,?7)",
-            params![q.id,q.original_path,q.quarantine_path,q.filename,q.hash,q.quarantined_at,q.scan_id],
+            params![
+                q.id,
+                q.original_path,
+                q.quarantine_path,
+                q.filename,
+                q.hash,
+                q.quarantined_at,
+                q.scan_id
+            ],
         )?;
         Ok(())
     }
@@ -126,19 +180,29 @@ impl Database {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT id,original_path,quarantine_path,filename,hash,quarantined_at,scan_id
-             FROM quarantine ORDER BY quarantined_at DESC"
+             FROM quarantine ORDER BY quarantined_at DESC",
         )?;
         // FIX: stesso pattern — collect prima del drop
-        let rows = stmt.query_map([], |r| Ok(QuarantineRecord{
-            id:r.get(0)?,original_path:r.get(1)?,quarantine_path:r.get(2)?,
-            filename:r.get(3)?,hash:r.get(4)?,quarantined_at:r.get(5)?,scan_id:r.get(6)?,
-        }))?;
+        let rows = stmt.query_map([], |r| {
+            Ok(QuarantineRecord {
+                id: r.get(0)?,
+                original_path: r.get(1)?,
+                quarantine_path: r.get(2)?,
+                filename: r.get(3)?,
+                hash: r.get(4)?,
+                quarantined_at: r.get(5)?,
+                scan_id: r.get(6)?,
+            })
+        })?;
         let result: Vec<QuarantineRecord> = rows.collect::<Result<Vec<_>, _>>()?;
         Ok(result)
     }
 
     pub fn remove_quarantine(&self, id: &str) -> Result<()> {
-        self.conn.lock().unwrap().execute("DELETE FROM quarantine WHERE id=?", [id])?;
+        self.conn
+            .lock()
+            .unwrap()
+            .execute("DELETE FROM quarantine WHERE id=?", [id])?;
         Ok(())
     }
 }
@@ -146,11 +210,11 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::engine::job::ScanReport;
     use crate::adapters::scanner_trait::{ProviderResult, Verdict};
+    use crate::engine::job::ScanReport;
     use crate::security::quarantine::QuarantineRecord;
-    use tempfile::tempdir;
     use std::path::PathBuf;
+    use tempfile::tempdir;
 
     fn make_test_db() -> Database {
         let temp = tempdir().unwrap();
@@ -167,9 +231,12 @@ mod tests {
                 id TEXT PRIMARY KEY, original_path TEXT, quarantine_path TEXT,
                 filename TEXT, hash TEXT, quarantined_at TEXT, scan_id TEXT
             );
-            CREATE INDEX IF NOT EXISTS idx_filehash ON scans(filehash);"
-        ).unwrap();
-        Database { conn: std::sync::Mutex::new(conn) }
+            CREATE INDEX IF NOT EXISTS idx_filehash ON scans(filehash);",
+        )
+        .unwrap();
+        Database {
+            conn: std::sync::Mutex::new(conn),
+        }
     }
 
     fn make_report(verdict: Verdict, hash: &str) -> ScanReport {
@@ -255,8 +322,12 @@ mod tests {
     #[test]
     fn clear_history_removes_all_scans() {
         let db = make_test_db();
-        db.save_report(&make_report(Verdict::Clean, "hash1")).await.unwrap();
-        db.save_report(&make_report(Verdict::Malicious, "hash2")).await.unwrap();
+        db.save_report(&make_report(Verdict::Clean, "hash1"))
+            .await
+            .unwrap();
+        db.save_report(&make_report(Verdict::Malicious, "hash2"))
+            .await
+            .unwrap();
 
         db.clear_history().unwrap();
 
