@@ -1,0 +1,2 @@
+#!/bin/bash
+python3 /mnt/d/ClaudeCode/Projects/ScanDeep\ Defender/.wiki/claude-obsidian.py workflow inspect /mnt/d/ClaudeCode/Projects/ScanDeep\ Defender/.wiki/ingest-transaction.json --vault /mnt/d/ClaudeCode/Projects/ScanDeep\ Defender/.wiki

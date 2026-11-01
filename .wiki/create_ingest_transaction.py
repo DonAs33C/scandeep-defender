@@ -5,8 +5,8 @@ import json
 import hashlib
 from datetime import datetime
 
-# Current timestamp
-NOW = datetime.utcnow().isoformat() + "Z"
+# Current timestamp (canonical UTC without microseconds)
+NOW = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
 OPERATION_ID = f"ingest-{datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')}"
 
 # Source IDs from captured files
@@ -153,7 +153,7 @@ def create_index_page(all_pages: list) -> dict:
     # Get source info for titles
     source_map = {s['id']: s['title'] for s in SOURCES}
 
-    # Group pages by domain
+    # Group pages by domain (including MOC index pages)
     domains = {
         "Architecture": [],
         "Automation": [],
@@ -190,6 +190,16 @@ def create_index_page(all_pages: list) -> dict:
                 link_path = p['path'].replace('wiki/', '')
                 section_items.append(f"- [[{link_path}|{title}]]")
             sections.append(f"## {domain}\n\n" + "\n".join(section_items))
+
+    # Add MOC index pages section
+    moc_pages = [p for p in all_pages if p['path'].endswith('/index.md') and p['path'] != 'wiki/index.md']
+    if moc_pages:
+        moc_items = []
+        for p in moc_pages:
+            domain = p['path'].split('/')[1].title()
+            link_path = p['path'].replace('wiki/', '')
+            moc_items.append(f"- [[{link_path}|{domain} Index]]")
+        sections.append(f"## MOC Indexes\n\n" + "\n".join(moc_items))
 
     content = f"""---
 type: meta
@@ -315,6 +325,7 @@ Navigation: [[index|Wiki index]] · [[overview|Vault overview]] · [[hot|Recent 
 ## {OPERATION_ID} — {NOW}
 
 **Operation Type:** ingest
+**Date:** {NOW}
 **Sources Processed:** 5
 **Pages Created:** 11 (5 content + 5 MOC + index)
 **Ledger Updates:** source-ledger (5), claim-ledger (multiple)
@@ -405,6 +416,86 @@ Use [[index|Wiki index]] to find knowledge, [[hot|Recent context]] to resume wor
         "mode": "replace",
         "content": content,
         "sha256": compute_hash(content),
+    }
+
+def create_source_ledger_page() -> dict:
+    """Create the source ledger page."""
+    # Read existing file for expected hash
+    existing_path = "D:/ClaudeCode/Projects/ScanDeep Defender/.wiki/wiki/meta/ledgers/source-ledger.json"
+    try:
+        with open(existing_path, 'r') as f:
+            existing_content = f.read()
+        expected_hash = compute_hash(existing_content)
+    except FileNotFoundError:
+        expected_hash = None
+
+    # Build sources with src- prefix and origin object
+    sources = {}
+    for source_id, record in source_ledger_records.items():
+        src_id = f"src-{source_id}"
+        sources[src_id] = {
+            "origin": {
+                "locator": record["locator"],
+                "captured_at": record.get("freshness", {}).get("refresh_due", NOW),
+            },
+            "authority": record["authority"],
+            "review_state": record["review_state"],
+            "freshness": record["freshness"],
+            "independence_key": record["independence_key"],
+            "linked_pages": record["linked_pages"],
+        }
+
+    content = {
+        "schema": "claude-obsidian.source-ledger.v1",
+        "generated_at": NOW,
+        "sources": sources,
+    }
+    content_str = json.dumps(content, indent=2)
+    return {
+        "path": "wiki/meta/ledgers/source-ledger.json",
+        "mode": "replace",
+        "content": content_str,
+        "sha256": compute_hash(content_str),
+        "_expected_hash": expected_hash,
+    }
+
+def create_claim_ledger_page() -> dict:
+    """Create the claim ledger page."""
+    # Read existing file for expected hash
+    existing_path = "D:/ClaudeCode/Projects/ScanDeep Defender/.wiki/wiki/meta/ledgers/claim-ledger.json"
+    try:
+        with open(existing_path, 'r') as f:
+            existing_content = f.read()
+        expected_hash = compute_hash(existing_content)
+    except FileNotFoundError:
+        expected_hash = None
+
+    # Build claims with clm- prefix and required fields
+    claims = {}
+    for i, (claim_id, record) in enumerate(claim_ledger_records.items(), 1):
+        clm_id = f"clm-{i:03d}"
+        claims[clm_id] = {
+            "text": record["statement"],
+            "evidence": record["support"],
+            "location": {"note": record["note_locator"]},
+            "reviewed_at": NOW,
+            "risk": record["risk"],
+            "confidence": record["confidence"],
+            "review_state": record["review_state"],
+        }
+
+    content = {
+        "schema": "claude-obsidian.claim-ledger.v1",
+        "generated_at": NOW,
+        "claims": claims,
+    }
+    content_str = json.dumps(content, indent=2)
+    return {
+        "path": "wiki/meta/ledgers/claim-ledger.json",
+        "mode": "replace",
+        "content": content_str,
+        "sha256": compute_hash(content_str),
+        "_expected_hash": expected_hash,
     }
 
 # Build the transaction
@@ -524,7 +615,14 @@ claim_ledger_records = {
     },
 }
 
-# Build transaction bundle
+# Build transaction bundle - add ledger writes
+ledger_writes = [
+    create_source_ledger_page(),
+    create_claim_ledger_page(),
+]
+writes.extend(ledger_writes)
+all_pages.extend(ledger_writes)
+
 # For new files (mode: create), expected_hash is null (file must not exist)
 # For replaced files (mode: replace), expected_hash is the current file's hash
 expected_hashes = {}
@@ -549,10 +647,7 @@ transaction = {
     "source_manifest_updates": source_manifest_updates,
     "writes": writes,
     "workflow": {
-        "catalogs": ["wiki/index.md"],
-        "expected_hashes": {
-            "wiki/index.md": meta_pages[0]["sha256"],
-        }
+        "catalogs": ["wiki/index.md"]
     }
 }
 
