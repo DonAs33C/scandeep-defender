@@ -1,12 +1,54 @@
 {
+  "permissions": {
+    "allow": [
+      "Read(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "Task(*)",
+      "Edit(src/*)",
+      "Edit(src-tauri/*)",
+      "Edit(.claude/*)",
+      "Edit(scripts/*)",
+      "Write(src/*)",
+      "Write(src-tauri/*)",
+      "Write(.claude/*)",
+      "Write(scripts/*)",
+      "MultiEdit(src/*)",
+      "MultiEdit(src-tauri/*)",
+      "MultiEdit(.claude/*)",
+      "MultiEdit(scripts/*)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(sudo *)",
+      "Bash(chmod 777 *)",
+      "Bash(dd if=*)",
+      "Bash(mkfs *)",
+      "Bash(fdisk *)",
+      "Bash(ssh *)",
+      "Bash(> /dev/*)"
+    ]
+  },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "D:/ClaudeCode/Projects/ScanDeep Defender/scripts/hook-security-check.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "cd D:/ClaudeCode/Projects/ScanDeep Defender/src-tauri && cargo fmt --all && cargo clippy --all-targets -- -D warnings 2>&1 | head -50",
+            "command": "D:/ClaudeCode/Projects/ScanDeep Defender/scripts/hook-rust-check.sh",
             "timeout": 60
           }
         ]
@@ -16,8 +58,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd D:/ClaudeCode/Projects/ScanDeep Defender && npm run lint && npm run typecheck 2>&1 | head -50",
+            "command": "D:/ClaudeCode/Projects/ScanDeep Defender/scripts/hook-frontend-check.sh",
             "timeout": 60
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "D:/ClaudeCode/Projects/ScanDeep Defender/scripts/hook-stop-check.sh",
+            "timeout": 30
           }
         ]
       }
