@@ -2,7 +2,7 @@
 name: tauri-integration-reviewer
 description: Tauri Rust↔TypeScript boundary reviewer - validates command signatures, invoke types, serde serialization, State management, and AppHandle usage
 model: haiku
-tools: ["Read", "Grep", "Glob"]
+tools: ["Read", "Grep", "Glob", "Edit", "Write"]
 ---
 
 # Tauri Integration Reviewer

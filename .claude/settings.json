@@ -36,7 +36,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "D:/ClaudeCode/Projects/ScanDeep Defender/scripts/hook-security-check.sh",
+            "command": "scripts/hook-security-check.sh",
             "timeout": 10
           }
         ]
@@ -48,7 +48,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "D:/ClaudeCode/Projects/ScanDeep Defender/scripts/hook-rust-check.sh",
+            "command": "scripts/hook-rust-check.sh",
             "timeout": 60
           }
         ]
@@ -58,7 +58,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "D:/ClaudeCode/Projects/ScanDeep Defender/scripts/hook-frontend-check.sh",
+            "command": "scripts/hook-frontend-check.sh",
             "timeout": 60
           }
         ]
@@ -69,7 +69,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "D:/ClaudeCode/Projects/ScanDeep Defender/scripts/hook-stop-check.sh",
+            "command": "scripts/hook-stop-check.sh",
             "timeout": 30
           }
         ]

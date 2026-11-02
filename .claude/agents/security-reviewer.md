@@ -2,7 +2,7 @@
 name: security-reviewer
 description: Security vulnerability detection specialist for ScanDeep Defender - audits API key handling, file system access, command injection, path traversal, and supply chain security
 model: haiku
-tools: ["Read", "Grep", "Glob"]
+tools: ["Read", "Grep", "Glob", "Edit", "Write"]
 ---
 
 # Security Reviewer

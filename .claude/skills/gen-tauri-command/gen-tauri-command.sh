@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-PROJECT_ROOT="D:/ClaudeCode/Projects/ScanDeep Defender"
+PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 SRC_TAURI="$PROJECT_ROOT/src-tauri"
 
 # Parse arguments
