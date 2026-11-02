@@ -23,7 +23,7 @@ jobs:
       - name: Install cargo-deny
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          working-directory: ./src-tauri
+          manifest-path: ./src-tauri/Cargo.toml
 
       - name: Cache cargo registry
         uses: actions/cache@v4
