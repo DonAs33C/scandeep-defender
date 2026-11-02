@@ -1,0 +1,34 @@
+{
+	"nodes":[
+		{"id":"b2c3d4e5f6789012","type":"group","x":50,"y":380,"width":1100,"height":480,"label":"Architecture"},
+		{"id":"f678901234567890","type":"group","x":-40,"y":920,"width":1100,"height":400,"label":"Documentation (from inbox)"},
+		{"id":"l234567890123456","type":"group","x":1200,"y":50,"width":450,"height":800,"label":"Key Concepts"},
+		{"id":"a1b2c3d4e5f67890","type":"text","text":"# ScanDeep Defender\n\n**v2.1.1** - Multi-engine file scanner\n\nTauri v2 • React 18 • TypeScript 5.7 • Rust 2021\n\n## Quick Links\n- [[architecture/|Architecture]]\n- [[security/|Security]]\n- [[tauri/|Tauri Commands]]\n- [[release/|Release Process]]\n- [[automation/|Automation]]","x":50,"y":50,"width":400,"height":280},
+		{"id":"c3d4e5f678901234","type":"text","text":"## Frontend\n\n**Stack:** React 18 + TypeScript 5.7 + Vite 6\n\n**UI Library:** shadcn/ui + Radix UI + Tailwind CSS\n\n**Testing:** Vitest + React Testing Library\n\n**Key Components:**\n- Scan.tsx - Main scan interface\n- File upload with drag/drop\n- Service checkboxes (5 providers)\n- Progress steps display\n- Results verdict display\n\n**State Management:** React hooks + Context (LangProvider)","x":100,"y":420,"width":450,"height":380},
+		{"id":"d4e5f67890123456","type":"text","text":"## Backend (Rust)\n\n**Stack:** Tauri v2 + Rust 2021\n\n**Key Dependencies:**\n- tauri-plugin-fs, -dialog, -opener\n- reqwest (HTTP client)\n- rusqlite (SQLite, bundled)\n- tokio (async runtime)\n- notify (file watching)\n- keyring (credential storage)\n- serde/serde_json\n- uuid, chrono, sha2\n- tracing + tracing-subscriber\n\n**Build:** cargo build --release","x":600,"y":420,"width":450,"height":380},
+		{"id":"e5f6789012345678","type":"text","text":"## Scanner Providers (5)\n\nAll implement common `ProviderInfo` interface:\n\n1. **VirusTotal** - Community API\n2. **MetaDefender** - OPSWAT API\n3. **Hybrid Analysis** - Falcon Sandbox\n4. **Cloudmersive** - Virus Scan API\n5. **ClamAV** - Local daemon\n\n**Flow:**\nFile → check_duplicate → scan_file →\n  Parallel provider calls →\n  Aggregate results → verdict + risk_score","x":1100,"y":420,"width":450,"height":380},
+		{"id":"m345678901234567","type":"text","text":"## Security Model\n\n- **Credential Storage:** Windows Credential Manager via `keyring` crate\n- **File Quarantine:** Isolated scan directory\n- **CSP:** Strict Content Security Policy\n- **Supply Chain:** cargo-deny in CI\n- **No Network in Renderer:** All HTTP via Tauri commands\n- **SQLite:** Bundled, no system dependency\n\n**Threat Vectors Mitigated:**\n✓ Malicious file execution\n✓ API key exfiltration\n✓ Supply chain compromise\n✓ Path traversal","x":1250,"y":100,"width":400,"height":350},
+		{"id":"n456789012345678","type":"text","text":"## Release Artifacts\n\n**GitHub Actions Workflow:**\n- Trigger: version tag (v*.*.*)\n- Matrix: Windows latest\n- Targets:\n  - NSIS installer (.exe)\n  - MSI installer (.msi)\n  - Portable ZIP\n- Signing: Code signing cert (optional)\n- Auto-draft release with artifacts\n\n**Versioning:** SemVer from Cargo.toml + package.json","x":1250,"y":500,"width":400,"height":280},
+		{"id":"i901234567890123","type":"file","file":"wiki/tauri/Tauri Command Patterns.md","x":1000,"y":960,"width":400,"height":200},
+		{"id":"j012345678901234","type":"file","file":"wiki/automation/Automation Setup.md","x":100,"y":1200,"width":400,"height":200},
+		{"id":"k123456789012345","type":"file","file":"wiki/release/Release Process.md","x":550,"y":1200,"width":400,"height":200},
+		{"id":"o567890123456789","type":"text","text":"## Tauri Command Patterns\n\n**Commands (invoke):**\n- `scan_file` - Start multi-provider scan\n- `check_duplicate` - DB lookup by hash\n- `get_api_key` / `set_api_key` - Credential mgmt\n- `get_scan_history` - Paginated results\n\n**Events (listen):**\n- `scan-progress` - Real-time provider status\n\n**State:**\n- `AppState` with DB pool + HTTP client\n- Access via `State<'_, AppState>`\n\n**Errors:** `anyhow::Result` → Tauri `InvokeError`","x":1250,"y":830,"width":400,"height":350},
+		{"id":"g789012345678901","type":"file","file":"wiki/architecture/Project Architecture.md","x":10,"y":960,"width":400,"height":200},
+		{"id":"h890123456789012","type":"file","file":"wiki/security/Security Considerations.md","x":460,"y":960,"width":400,"height":200}
+	],
+	"edges":[
+		{"id":"edge-1","fromNode":"a1b2c3d4e5f67890","fromSide":"bottom","toNode":"c3d4e5f678901234","toSide":"top"},
+		{"id":"edge-2","fromNode":"a1b2c3d4e5f67890","fromSide":"bottom","toNode":"d4e5f67890123456","toSide":"left"},
+		{"id":"edge-3","fromNode":"a1b2c3d4e5f67890","fromSide":"right","toNode":"e5f6789012345678","toSide":"left"},
+		{"id":"edge-4","fromNode":"c3d4e5f678901234","fromSide":"right","toNode":"e5f6789012345678","toSide":"left"},
+		{"id":"edge-5","fromNode":"d4e5f67890123456","fromSide":"right","toNode":"e5f6789012345678","toSide":"left"},
+		{"id":"edge-6","fromNode":"a1b2c3d4e5f67890","fromSide":"bottom","toNode":"g789012345678901","toSide":"top"},
+		{"id":"edge-7","fromNode":"a1b2c3d4e5f67890","fromSide":"bottom","toNode":"h890123456789012","toSide":"top"},
+		{"id":"edge-8","fromNode":"a1b2c3d4e5f67890","fromSide":"bottom","toNode":"i901234567890123","toSide":"top"},
+		{"id":"edge-9","fromNode":"a1b2c3d4e5f67890","fromSide":"bottom","toNode":"j012345678901234","toSide":"top"},
+		{"id":"edge-10","fromNode":"a1b2c3d4e5f67890","fromSide":"bottom","toNode":"k123456789012345","toSide":"top"},
+		{"id":"edge-11","fromNode":"h890123456789012","fromSide":"top","toNode":"m345678901234567","toSide":"bottom"},
+		{"id":"edge-12","fromNode":"k123456789012345","fromSide":"top","toNode":"n456789012345678","toSide":"bottom"},
+		{"id":"edge-13","fromNode":"i901234567890123","fromSide":"right","toNode":"o567890123456789","toSide":"left"}
+	]
+}
