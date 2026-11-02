@@ -4,14 +4,14 @@
 [advisories]
 # Vulnerability database: https://github.com/RustSec/advisory-db
 # Check for security vulnerabilities in dependencies
-db = "https://github.com/RustSec/advisory-db"
+db-urls = ["https://github.com/RustSec/advisory-db"]
 # Path to local copy of advisory database (optional)
 # db-path = "~/.cargo/advisory-db"
 
 # Fail on these severity levels
 # Options: info, low, medium, high, critical
 # Default: high, critical
-severity = "high"
+severity-threshold = "high"
 
 # Ignore specific vulnerability IDs (use sparingly, with justification)
 # ignore = []
@@ -54,8 +54,8 @@ deny = [
 # Allow licenses by crate (override for specific crates)
 # allow-by-crate = { "crate-name" = ["LICENSE-ID"] }
 
-# Require license files to be present
-require-license-file = false
+# Require license files to be present - deprecated in newer cargo-deny
+# require-license-file = false
 
 [bans]
 # Ban specific crate versions or crates entirely
@@ -72,16 +72,13 @@ yanked = "deny"
 
 [sources]
 # Allow only these registries (crates.io is implicit)
-allow-unknown-registries = false
+# allow-unknown-registries is deprecated - use allow-registry instead
 
-# Allow git sources
-allow-git = true
+# Allow git sources - must be an array
+allow-git = ["*"]
 
-# Allow path sources (local dependencies)
-allow-path = false
+# Allow path sources (local dependencies) - deprecated, use allow-path instead with array
+# allow-path = false
 
-[metadata]
-# Project metadata for audit reports
-name = "ScanDeep Defender"
-repository = "https://github.com/DonAs33/ScanDeep-Defender"
-description = "Windows desktop malware scanner with multi-engine cloud and local scanning"
+# [metadata] section removed - not a valid cargo-deny section
+# Project metadata for audit reports can be in Cargo.toml instead
