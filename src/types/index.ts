@@ -191,3 +191,4 @@ export interface ProviderInfo {
   id: ProviderId;
   label: string;
   sub: string;
+}

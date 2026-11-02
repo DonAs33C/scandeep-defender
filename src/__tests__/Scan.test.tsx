@@ -119,7 +119,8 @@ describe("Scan Component", () => {
       renderScan();
 
       const uploadArea = screen.getByText("Clicca per sfogliare e selezionare un file");
-      await userEvent.keyboard("{Enter}", { target: uploadArea });
+      uploadArea.focus();
+      await userEvent.keyboard("{Enter}");
 
       expect(mockOpenDialog).toHaveBeenCalled();
     });
@@ -212,7 +213,7 @@ describe("Scan Component", () => {
 
     it("listens for scan progress events", async () => {
       let progressCallback: (event: any) => void;
-      mockListen.mockImplementation((_event, callback) => {
+      mockListen.mockImplementation((_event: string, callback: (event: any) => void) => {
         progressCallback = callback;
         return Promise.resolve(vi.fn());
       });
@@ -321,7 +322,7 @@ describe("Scan Component", () => {
   describe("Progress steps", () => {
     it("displays progress steps during scan", async () => {
       let progressCallback: (event: any) => void;
-      mockListen.mockImplementation((_event, callback) => {
+      mockListen.mockImplementation((_event: string, callback: (event: any) => void) => {
         progressCallback = callback;
         return Promise.resolve(vi.fn());
       });
@@ -345,7 +346,7 @@ describe("Scan Component", () => {
 
     it("updates existing progress step instead of duplicating", async () => {
       let progressCallback: (event: any) => void;
-      mockListen.mockImplementation((_event, callback) => {
+      mockListen.mockImplementation((_event: string, callback: (event: any) => void) => {
         progressCallback = callback;
         return Promise.resolve(vi.fn());
       });
