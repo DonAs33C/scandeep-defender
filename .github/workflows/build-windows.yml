@@ -37,6 +37,16 @@ jobs:
         run: cargo update
         shell: bash
 
+      - name: Install cargo-deny
+        working-directory: src-tauri
+        run: cargo install cargo-deny --locked
+        shell: bash
+
+      - name: Run cargo deny check
+        working-directory: src-tauri
+        run: cargo deny check
+        shell: bash
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
